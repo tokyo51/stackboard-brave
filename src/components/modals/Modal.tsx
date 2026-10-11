@@ -6,7 +6,7 @@ interface Props {
   onClose: () => void
   children: ReactNode
   footer?: ReactNode
-  width?: 'sm' | 'md' | 'lg'
+  width?: 'sm' | 'md' | 'lg' | 'xl'
   /** 'light' keeps the board visible behind the dialog (Settings, where changes preview live). */
   scrim?: 'normal' | 'light'
 }
@@ -21,7 +21,7 @@ export function Modal({ title, onClose, children, footer, width = 'sm', scrim = 
   }, [onClose])
 
   const widthClass =
-    width === 'lg' ? 'max-w-xl' : width === 'md' ? 'max-w-md' : 'max-w-sm'
+    width === 'xl' ? 'max-w-3xl' : width === 'lg' ? 'max-w-xl' : width === 'md' ? 'max-w-md' : 'max-w-sm'
 
   return (
     <div
@@ -34,6 +34,7 @@ export function Modal({ title, onClose, children, footer, width = 'sm', scrim = 
     >
       <div
         role="dialog"
+        data-surface="modal"
         aria-label={title}
         className={`flex max-h-full w-full ${widthClass} flex-col overflow-hidden rounded-xl bg-raised text-fg shadow-2xl ring-1 ring-line`}
       >

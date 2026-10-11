@@ -24,6 +24,10 @@ import { Certificate } from './components/Certificate'
 import type { Bankruptcy } from './lib/stashPlan'
 import { BookmarkGhost, StackGhost } from './components/DragGhosts'
 import { Backdrop } from './components/Backdrop'
+import { Ambient } from './components/Ambient'
+import { CommandPalette } from './components/CommandPalette'
+import { installTilt } from './lib/tilt'
+import { useAppearance } from './store/useAppearance'
 import { ModalHost } from './components/modals/ModalHost'
 import { useStackableStore } from './store/useStackableStore'
 import { useBookmarkTree } from './hooks/useBookmarkTree'
@@ -95,6 +99,8 @@ const collisionDetectionStrategy: CollisionDetection = (args) => {
 
 // The dragged card flies to its slot and flattens out on the way (data-dropping switches
 // off the tilt in index.css). The default side effect keeps the original hidden meanwhile.
+// Fork: with Settings > Motion > Spring on, the card lands with a small overshoot.
+const SPRING = 'linear(0, 0.006, 0.025 2.8%, 0.101 6.1%, 0.539 18.9%, 0.721 25.3%, 0.849 31.5%, 0.937 38.1%, 0.968 41.8%, 0.991 45.7%, 1.006 50.1%, 1.015 55%, 1.017 63.9%, 1.001)'
 const dropAnimation: DropAnimation = {
   duration: 200,
   easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)',
@@ -125,6 +131,8 @@ export default function App() {
   // A tab opened by "Stash this window" lands on the Stash space and says what it saved.
   const loaded = !!tree
   const [certificate, setCertificate] = useState<Bankruptcy | null>(null)
+  const spring = useAppearance((s) => s.appearance.motion.spring && s.appearance.motion.level !== 'off')
+  useEffect(() => installTilt(), [])
   // Timing mark for the board's first paint; the e2e suite checks the wallpaper comes after it.
   useEffect(() => {
     if (loaded) performance.mark('sb:board')
@@ -250,6 +258,7 @@ export default function App() {
     >
       <div className="flex h-screen text-fg">
         <Backdrop />
+        <Ambient />
         <Sidebar />
         <main className="flex-1 overflow-hidden">
           {loading && !tree && (
@@ -268,10 +277,11 @@ export default function App() {
         </main>
         <ModalHost />
         <UndoToast />
+        <CommandPalette />
         <KeepItHint />
         <RatingPrompt />
         {certificate && <Certificate bankruptcy={certificate} onClose={() => setCertificate(null)} />}
-        <DragOverlay dropAnimation={dropAnimation}>
+        <DragOverlay dropAnimation={spring ? { ...dropAnimation, duration: 420, easing: SPRING } : dropAnimation}>
           {dragging?.type === 'bookmark' && <BookmarkGhost bookmark={dragging.bookmark} />}
           {dragging?.type === 'stack' && <StackGhost stack={dragging.stack} />}
           {dragging?.type === 'space' && (

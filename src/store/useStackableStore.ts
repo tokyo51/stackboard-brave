@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { flushSync } from 'react-dom'
 import type { StackableTree } from '../lib/types'
 import {
   deleteBookmark,
@@ -124,7 +125,13 @@ export const useStackableStore = create<StackableState>((set, get) => ({
 
   selectSpace: (id) => {
     prefs.setLastSpaceId(id)
-    set({ selectedSpaceId: id })
+    if (id === get().selectedSpaceId) return
+    const go = () => set({ selectedSpaceId: id })
+    // Fork: the board animates between spaces with a View Transition (Settings > Motion).
+    const doc = typeof document !== 'undefined' ? (document as Document & { startViewTransition?: (cb: () => void) => unknown }) : null
+    const tx = doc?.documentElement.getAttribute('data-space-tx')
+    if (!doc?.startViewTransition || !tx || tx === 'none' || matchMedia('(prefers-reduced-motion: reduce)').matches) return go()
+    doc.startViewTransition(() => flushSync(go))
   },
   setSearch: (q) => set({ search: q }),
   openModal: (m) => set({ modal: m }),

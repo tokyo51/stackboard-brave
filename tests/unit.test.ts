@@ -15,6 +15,7 @@ import {
   PALETTE_TOKENS,
   bootMirror,
   mergeAppearance,
+  styleAttributes,
   onlyScheme,
   parseAppearance,
   resolveScheme,
@@ -23,6 +24,9 @@ import {
 } from '../src/lib/appearance'
 import { spaceIndexForKey } from '../src/lib/shortcuts'
 import { glyphOf } from '../src/lib/favicon'
+import { DEFAULT_WIDGETS, calculate, daysUntil, greeting, monthGrid, parseWidgets, progressOf, quoteIndexFor, resolveSearch, skyOf } from '../src/lib/widgets'
+import { readThemeFile, themeFile } from '../src/lib/themeFile'
+import { PRESETS } from '../src/lib/presets'
 import palettesCss from '../src/styles/palettes.css'
 import { contrastRatio, gradientStops, mix, over, readPalettes } from './contrast'
 import msgEn from '../public/_locales/en/messages.json'
@@ -259,7 +263,7 @@ eq('appearance: nothing stored gives the defaults', parseAppearance(undefined), 
 eq('appearance: junk gives the defaults', parseAppearance('dark please'), DEFAULT_APPEARANCE)
 eq(
   'appearance: unknown palette, mode, density and kind fall back',
-  parseAppearance({ palette: 'dracula', mode: 'dim', density: 'cosy', bg: { kind: 'video' } }),
+  parseAppearance({ palette: 'no-such-palette', mode: 'dim', density: 'cosy', bg: { kind: 'video' } }),
   DEFAULT_APPEARANCE,
 )
 eq(
@@ -271,13 +275,16 @@ eq('appearance: blur caps at its maximum', parseAppearance({ bg: { blur: 99 } })
 eq('appearance: gradient choice stays 1-3', [parseAppearance({ bg: { gradient: 0 } }).bg.gradient, parseAppearance({ bg: { gradient: 7 } }).bg.gradient, parseAppearance({ bg: { gradient: 2.4 } }).bg.gradient], [1, 3, 2])
 eq('appearance: numbers stored as text still read', parseAppearance({ bg: { dim: '42', blur: ' 6 ' } }).bg, { ...DEFAULT_APPEARANCE.bg, dim: 42, blur: 6 })
 eq('appearance: NaN and Infinity fall back', parseAppearance({ bg: { dim: NaN, blur: Infinity } }).bg, DEFAULT_APPEARANCE.bg)
-const picked = { mode: 'dark', palette: 'nord', density: 'compact', bg: { kind: 'image', gradient: 2, dim: 50, blur: 8, imageRev: 1791200000000 } }
+const picked = { ...DEFAULT_APPEARANCE, mode: 'dark', palette: 'nord', density: 'compact', bg: { kind: 'image', gradient: 2, dim: 50, blur: 8, imageRev: 1791200000000 }, style: 'glass', radius: 'round', font: 'mono', details: true, motion: { level: 'subtle', space: 'zoom', hover: 'tilt', entrance: 'stagger', ambient: 'aurora', spring: false } }
 eq('appearance: a full image setup survives a round trip', parseAppearance(JSON.parse(JSON.stringify(picked))), picked)
 eq('appearance: merging a slider keeps the rest of the background', mergeAppearance(parseAppearance(picked), { bg: { dim: 20 } }).bg, { ...picked.bg, dim: 20 })
 eq('appearance: merging clamps too', mergeAppearance(DEFAULT_APPEARANCE, { bg: { dim: 999 } }).bg.dim, DIM_MAX)
 eq('mirror: settings survive the localStorage copy', settingsFromMirror(JSON.stringify(bootMirror(parseAppearance(picked)))), picked)
 eq('mirror: a broken copy gives the defaults', [settingsFromMirror('{not json'), settingsFromMirror(null)], [DEFAULT_APPEARANCE, DEFAULT_APPEARANCE])
 eq('mirror: tells the boot script when a palette has one scheme', [bootMirror(parseAppearance({ palette: 'nord' })).only, bootMirror(DEFAULT_APPEARANCE).only], ['dark', null])
+eq('appearance: unknown style, corners, font and motion fall back', (() => { const a = parseAppearance({ style: 'neon', radius: 'blob', font: 'comic', details: 'yes', motion: { level: 'max', hover: 'spin', ambient: 'fire', spring: 1 } }); return [a.style, a.radius, a.font, a.details, a.motion] })(), [DEFAULT_APPEARANCE.style, DEFAULT_APPEARANCE.radius, DEFAULT_APPEARANCE.font, DEFAULT_APPEARANCE.details, DEFAULT_APPEARANCE.motion])
+eq('appearance: merging one motion option keeps the others', mergeAppearance(DEFAULT_APPEARANCE, { motion: { hover: 'glow' } }).motion, { ...DEFAULT_APPEARANCE.motion, hover: 'glow' })
+eq('attributes: motion off switches every effect off but keeps the ambient choice', (() => { const x = styleAttributes(mergeAppearance(DEFAULT_APPEARANCE, { motion: { level: 'off', ambient: 'aurora' } })); return [x['data-hover'], x['data-entrance'], x['data-space-tx'], x['data-spring'], x['data-ambient']] })(), ['none', 'none', 'none', 'off', 'aurora'])
 eq('mirror: carries the background kind for the first frame', bootMirror(parseAppearance(picked)).bg, 'image')
 
 // Light, dark, system.
@@ -315,6 +322,31 @@ for (const [loc, m] of Object.entries(LOCALES)) {
   eq(`locale ${loc}: summary fits 132`, [...m.extDescription.message].length <= 132, true)
 }
 eq('locale en: the English title is unchanged', msgEn.extName.message, 'Stackboard: Bookmark Manager & New Tab Spaces')
+
+// Fork: widgets.
+eq('search: words go to the chosen engine', resolveSearch('cat videos', 'brave')?.url, 'https://search.brave.com/search?q=cat%20videos')
+eq('search: a !bang anywhere picks the site', [resolveSearch('!yt lofi', 'google')?.url, resolveSearch('lofi beats !yt', 'google')?.url], ['https://www.youtube.com/results?search_query=lofi', 'https://www.youtube.com/results?search_query=lofi%20beats'])
+eq('search: a bare !bang opens the site', resolveSearch('!gh', 'brave')?.url, 'https://github.com')
+eq('search: an unknown bang is just words', resolveSearch('!nope x', 'duckduckgo')?.via, 'DuckDuckGo')
+eq('search: addresses open directly', [resolveSearch('github.com/swole', 'brave')?.url, resolveSearch('localhost:5173', 'brave')?.url, resolveSearch('https://x.io', 'brave')?.url], ['https://github.com/swole', 'https://localhost:5173', 'https://x.io'])
+eq('search: empty input does nothing', resolveSearch('   ', 'brave'), null)
+eq('calc: precedence, powers and brackets', [calculate('2+3*4'), calculate('(2+3)*4'), calculate('2^3^2'), calculate('-3^2'), calculate('10 % 4')], [14, 20, 512, -9, 2])
+eq('calc: commas, × and ÷', [calculate('1,5 × 4'), calculate('9 ÷ 3')], [6, 3])
+eq('calc: nonsense gives nothing', [calculate('2+'), calculate('(1'), calculate('alert(1)'), calculate('1/0'), calculate('')], [null, null, null, null, null])
+eq('greeting: by the hour', [greeting(3), greeting(9), greeting(14), greeting(21)], ['Good night', 'Good morning', 'Good afternoon', 'Good evening'])
+eq('calendar: October 2026 starts on a Thursday, Monday first', monthGrid(2026, 9)[0], [null, null, null, 1, 2, 3, 4])
+eq('calendar: every week has seven days', monthGrid(2026, 1).every((w) => w.length === 7), true)
+eq('countdown: whole days, negative once past', [daysUntil('2026-10-21', new Date(2026, 9, 11, 23, 59)), daysUntil('2026-10-01', new Date(2026, 9, 11)), daysUntil('soon', new Date())], [10, -10, null])
+eq('progress: noon is half the day', round2(progressOf(new Date(2026, 9, 11, 12, 0)).day), 0.5)
+eq('progress: everything stays between 0 and 1', Object.values(progressOf(new Date(2026, 11, 31, 23, 59))).every((v) => v >= 0 && v <= 1), true)
+eq('quote: the same all day, another tomorrow', [quoteIndexFor(new Date(2026, 9, 11, 1)) === quoteIndexFor(new Date(2026, 9, 11, 23)), quoteIndexFor(new Date(2026, 9, 11)) !== quoteIndexFor(new Date(2026, 9, 12))], [true, true])
+eq('weather: WMO codes', [skyOf(0).sky, skyOf(2).sky, skyOf(63).sky, skyOf(73).sky, skyOf(95).sky], ['clear', 'partly', 'rain', 'snow', 'storm'])
+eq('widgets: junk gives the defaults', parseWidgets('nope'), DEFAULT_WIDGETS)
+eq('widgets: bad values are dropped or clamped', (() => { const w = parseWidgets({ engine: 'altavista', zones: ['Mars/Base', 'Asia/Tokyo'], pomodoro: { work: 999, rest: -4 }, countdown: { date: 'tomorrow' }, weather: { lat: 300, unit: 'k' } }); return [w.engine, w.zones, w.pomodoro, w.countdown.date, w.weather.lat, w.weather.unit] })(), ['brave', ['Asia/Tokyo'], { work: 120, rest: 1 }, '', null, 'c'])
+eq('theme file: round trip keeps the look, drops the picture', (() => { const a = parseAppearance({ palette: 'dracula', style: 'glass', bg: { kind: 'image', imageRev: 5 } }); const p = readThemeFile(JSON.parse(JSON.stringify(themeFile(a)))); return [p?.palette, p?.style, p?.bg?.kind, 'imageRev' in (p?.bg ?? {})] })(), ['dracula', 'glass', 'gradient', false])
+eq('theme file: anything else is refused', [readThemeFile({ version: 1 }), readThemeFile(null)], [null, null])
+eq('presets: every preset parses to a valid look', PRESETS.every((p) => JSON.stringify(mergeAppearance(DEFAULT_APPEARANCE, p.patch)) === JSON.stringify(parseAppearance(mergeAppearance(DEFAULT_APPEARANCE, p.patch)))), true)
+eq('presets: a preset palette exists', PRESETS.filter((p) => p.patch.palette && !PALETTES.some((x) => x.id === p.patch.palette)).map((p) => p.id), [])
 
 console.log(fails ? `\n${fails} FAILED` : '\nALL PASS')
 process.exit(fails ? 1 : 0)

@@ -5,6 +5,7 @@ import {
   parseAppearance,
   resolveScheme,
   settingsFromMirror,
+  styleAttributes,
   type Appearance,
   type AppearancePatch,
   type Scheme,
@@ -49,6 +50,7 @@ function applyToDocument(a: Appearance, scheme: Scheme): void {
     'data-mode': a.mode,
     'data-scheme': scheme,
     'data-density': a.density,
+    ...styleAttributes(a),
   }
   if (root.hasAttribute('data-board')) {
     next['data-bg'] = a.bg.kind

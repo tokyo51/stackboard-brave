@@ -10,6 +10,7 @@ import { useStackableStore } from '../../store/useStackableStore'
 import { AppearanceSettings } from '../AppearanceSettings'
 import { BOOKMARKS_PAGE, BROWSER_NAME } from '../../lib/browser'
 import { diagnostics } from '../../lib/diagnostics'
+import { MotionSection, PresetSection, StyleSection, WidgetSection } from '../CustomizeSettings'
 
 export function SettingsModal() {
   const close = useStackableStore((s) => s.closeModal)
@@ -70,14 +71,19 @@ export function SettingsModal() {
     <Modal
       title="Settings"
       onClose={close}
-      width="lg"
+      width="xl"
       scrim="light"
       footer={<SecondaryButton onClick={close}>Close</SecondaryButton>}
     >
-      <div className="flex flex-col gap-5">
+      <div className="flex flex-col gap-6">
+        <JumpBar />
+        <PresetSection />
         <AppearanceSettings />
+        <StyleSection />
+        <MotionSection />
+        <WidgetSection />
 
-        <section>
+        <section id="settings-data" className="scroll-mt-14">
           <h3 className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted">
             Add to your board
           </h3>
@@ -231,5 +237,30 @@ function TroubleshootingSection() {
         </pre>
       )}
     </section>
+  )
+}
+
+/** Fork: Settings grew long, so a sticky row of jumps to each part. */
+function JumpBar() {
+  const parts: Array<[string, string]> = [
+    ['settings-look', 'Look'],
+    ['settings-style', 'Style'],
+    ['settings-motion', 'Motion'],
+    ['settings-widgets', 'Widgets'],
+    ['settings-data', 'Data'],
+  ]
+  return (
+    <nav aria-label="Settings sections" className="sticky -top-4 z-10 -mx-4 -mt-4 flex gap-1 border-b border-line bg-raised/95 px-4 py-2 backdrop-blur">
+      {parts.map(([id, label]) => (
+        <button
+          key={id}
+          type="button"
+          onClick={() => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+          className="rounded-md px-2.5 py-1 text-xs font-medium text-muted hover:bg-hover hover:text-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+        >
+          {label}
+        </button>
+      ))}
+    </nav>
   )
 }

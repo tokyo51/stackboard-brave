@@ -1,5 +1,6 @@
 @import "tailwindcss";
 @import "./palettes.css";
+@import "./styles.css";
 
 /* ---------- Colour tokens (0.5.0) ----------
    Components use these names only (bg-canvas, text-muted, border-line, ...). Their values come

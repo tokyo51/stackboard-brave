@@ -12,9 +12,11 @@ import { BookmarkCard } from './BookmarkCard'
 
 interface Props {
   stack: Stack
+  /** Position in the space, for the staggered entrance. */
+  index?: number
 }
 
-export function StackColumn({ stack }: Props) {
+export function StackColumn({ stack, index = 0 }: Props) {
   const openModal = useStackableStore((s) => s.openModal)
   const removeWithUndo = useStackableStore((s) => s.removeWithUndo)
   const flashSeq = useStackableStore((s) => (s.flash?.id === stack.id ? s.flash.seq : 0))
@@ -70,7 +72,8 @@ export function StackColumn({ stack }: Props) {
       }}
       // Opacity as a class, never inline: the drop animation hides the original through
       // inline style, and a re-render mustn't overwrite that mid-drop.
-      style={{ transform: CSS.Translate.toString(transform), transition }}
+      style={{ transform: CSS.Translate.toString(transform), transition, '--i': index } as React.CSSProperties}
+      data-surface="stack"
       // Over a wallpaper each stack becomes a frosted tile, header included, so it reads on any photo.
       className={`group/stack flex min-w-0 flex-col wallpaper:rounded-2xl wallpaper:bg-panel/55 wallpaper:p-2 wallpaper:ring-1 wallpaper:ring-line/50 wallpaper:backdrop-blur-xl ${
         isDragging ? 'opacity-30' : ''

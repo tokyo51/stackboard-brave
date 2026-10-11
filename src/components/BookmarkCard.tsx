@@ -10,6 +10,15 @@ import { openHere } from '../lib/tabs'
 import { glow } from '../lib/motion'
 import { useStackableStore } from '../store/useStackableStore'
 import { BookmarkIcon } from './BookmarkIcon'
+import { useAppearance } from '../store/useAppearance'
+
+function siteOf(url: string): string {
+  try {
+    return new URL(url).hostname.replace(/^www\./, '')
+  } catch {
+    return url
+  }
+}
 
 const DAY = 24 * 60 * 60 * 1000
 const JUST_SAVED = 2 * 60 * 1000
@@ -41,6 +50,7 @@ export function BookmarkCard({ bookmark, sortable = true, top = false }: Props) 
   const { emoji, text } = parseBookmarkTitle(bookmark.title)
   const shown = displayTitle(text, bookmark.url)
   const [head, tail] = splitTitle(shown)
+  const details = useAppearance((s) => s.appearance.details)
   const age = bookmark.dateAdded ? Date.now() - bookmark.dateAdded : Infinity
   const isNew = age < DAY && !bookmark.batch
 
@@ -96,6 +106,7 @@ export function BookmarkCard({ bookmark, sortable = true, top = false }: Props) 
       style={{ transform: CSS.Translate.toString(transform), transition }}
       {...(sortable ? listeners : {})}
       data-drop-slot={isDragging ? '' : undefined}
+      data-surface="card"
       className={`group/card relative rounded-lg border text-sm text-fg compact:text-[13px] ${grab} ${
         isDragging
           ? 'border-dashed border-accent-line bg-accent-soft/50' // the slot the card will drop into
@@ -132,9 +143,12 @@ export function BookmarkCard({ bookmark, sortable = true, top = false }: Props) 
           )}
         </span>
         {/* Middle truncation: the start gets the ellipsis, the last word or two stay. */}
-        <span className="flex min-w-0">
-          <span className="truncate">{head}</span>
-          {tail && <span className="shrink-0 whitespace-pre">{tail}</span>}
+        <span className="flex min-w-0 flex-col">
+          <span className="flex min-w-0">
+            <span className="truncate">{head}</span>
+            {tail && <span className="shrink-0 whitespace-pre">{tail}</span>}
+          </span>
+          {details && <span className="truncate text-[11px] leading-4 text-muted">{siteOf(bookmark.url)}</span>}
         </span>
         {isOpen && <span className="sr-only"> (open in a tab)</span>}
       </a>

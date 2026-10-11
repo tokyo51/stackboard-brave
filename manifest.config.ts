@@ -10,7 +10,7 @@ export default defineManifest({
   default_locale: 'en',
   name: '__MSG_extName__',
   short_name: '__MSG_extShortName__',
-  version: '0.5.1',
+  version: '0.6.0',
   description: '__MSG_extDescription__',
   chrome_url_overrides: {
     newtab: 'newtab.html',
@@ -30,6 +30,8 @@ export default defineManifest({
     default_title: 'Save current tab to Stackboard',
   },
   permissions: ['bookmarks', 'favicon', 'tabs', 'storage', 'tabGroups'],
+  // Fork: asked for only when the Most visited widget is switched on.
+  optional_permissions: ['topSites'],
   icons: {
     16: 'icons/16.png',
     48: 'icons/48.png',

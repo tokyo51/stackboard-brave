@@ -23,7 +23,12 @@
   root.setAttribute('data-palette', typeof a.palette === 'string' ? a.palette : 'stackboard')
   root.setAttribute('data-mode', mode)
   root.setAttribute('data-scheme', scheme)
-  root.setAttribute('data-density', a.density === 'compact' ? 'compact' : 'comfortable')
+  root.setAttribute('data-density', a.density === 'compact' || a.density === 'spacious' ? a.density : 'comfortable')
+  // Fork: style, corners, font and motion, already worked out by the store (bootMirror().attrs).
+  var attrs = a.attrs && typeof a.attrs === 'object' ? a.attrs : {}
+  for (var k in attrs) {
+    if (/^data-[a-z-]+$/.test(k) && typeof attrs[k] === 'string') root.setAttribute(k, attrs[k])
+  }
   // Backgrounds belong to the board only, never the toolbar popup.
   if (root.hasAttribute('data-board')) {
     root.setAttribute('data-bg', a.bg === 'gradient' || a.bg === 'image' ? a.bg : 'solid')

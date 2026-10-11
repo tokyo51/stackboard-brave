@@ -4,12 +4,12 @@ import {
   BLUR_MAX,
   DIM_MAX,
   PALETTES,
+  PALETTE_GROUPS,
   onlyScheme,
   paletteInfo,
   resolveScheme,
   variantName,
   type BgKind,
-  type Density,
   type GradientId,
   type Mode,
   type PaletteId,
@@ -88,23 +88,30 @@ export function AppearanceSettings() {
 
   return (
     <section data-appearance>
-      <h3 className="mb-2.5 text-xs font-semibold uppercase tracking-wide text-muted">Appearance</h3>
+      <h3 className="mb-2.5 text-xs font-semibold uppercase tracking-wide text-muted">Themes</h3>
 
-      <div role="radiogroup" aria-label="Palette" className="grid grid-cols-4 gap-2.5">
-        {PALETTES.map((p) => {
-          const s = resolveScheme(a.mode, p.id, systemDark)
-          return (
-            <PaletteOption
-              key={p.id}
-              id={p.id}
-              name={p.name}
-              scheme={s}
-              detail={variantLabel(p.id, s)}
-              selected={p.id === a.palette}
-              onPick={() => update({ palette: p.id })}
-            />
-          )
-        })}
+      <div role="radiogroup" aria-label="Palette" className="flex flex-col gap-3.5">
+        {PALETTE_GROUPS.map((g) => (
+          <div key={g.id}>
+            <p className="mb-1.5 text-[11px] font-medium text-muted">{g.label}</p>
+            <div className="grid grid-cols-5 gap-2.5">
+              {PALETTES.filter((p) => p.group === g.id).map((p) => {
+                const s = resolveScheme(a.mode, p.id, systemDark)
+                return (
+                  <PaletteOption
+                    key={p.id}
+                    id={p.id}
+                    name={p.name}
+                    scheme={s}
+                    detail={variantLabel(p.id, s)}
+                    selected={p.id === a.palette}
+                    onPick={() => update({ palette: p.id })}
+                  />
+                )
+              })}
+            </div>
+          </div>
+        ))}
       </div>
 
       <div className="mt-4 grid grid-cols-[84px_minmax(0,1fr)] items-start gap-x-3 gap-y-3.5">
@@ -177,16 +184,6 @@ export function AppearanceSettings() {
           />
         </div>
 
-        <RowLabel>Density</RowLabel>
-        <Segmented<Density>
-          label="Density"
-          value={a.density}
-          onChange={(density) => update({ density })}
-          options={[
-            { value: 'comfortable', label: 'Comfortable' },
-            { value: 'compact', label: 'Compact' },
-          ]}
-        />
       </div>
     </section>
   )
@@ -202,7 +199,7 @@ function variantLabel(id: PaletteId, scheme: Scheme): string {
   return rest || (scheme === 'dark' ? 'Dark' : 'Light')
 }
 
-function RowLabel({ children }: { children: ReactNode }) {
+export function RowLabel({ children }: { children: ReactNode }) {
   return <div className="pt-1.5 text-xs font-medium text-soft">{children}</div>
 }
 
@@ -245,7 +242,7 @@ function PaletteOption(props: {
 }
 
 /** A thumbnail board drawn with the real tokens of one palette variant. */
-function MiniBoard({ palette, scheme }: { palette: PaletteId; scheme: Scheme }) {
+export function MiniBoard({ palette, scheme }: { palette: PaletteId; scheme: Scheme }) {
   const stacks = [3, 4, 2]
   return (
     <span
@@ -276,7 +273,7 @@ function MiniBoard({ palette, scheme }: { palette: PaletteId; scheme: Scheme }) 
   )
 }
 
-function Segmented<T extends string>(props: {
+export function Segmented<T extends string>(props: {
   label: string
   value: T
   options: Array<{ value: T; label: string; icon?: ReactNode }>

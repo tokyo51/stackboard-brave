@@ -805,8 +805,8 @@ try {
   check('the new tab makes no network requests', outside.length === 0, outside.slice(0, 3).join(', '))
   const shipped = JSON.parse(fs.readFileSync(path.join(EXT, 'manifest.json'), 'utf8'))
   check(
-    'no new permissions',
-    JSON.stringify(shipped.permissions) === JSON.stringify(['bookmarks', 'favicon', 'tabs', 'storage', 'tabGroups']) && !shipped.host_permissions && !shipped.optional_permissions,
+    'no new permissions (top sites only on request)',
+    JSON.stringify(shipped.permissions) === JSON.stringify(['bookmarks', 'favicon', 'tabs', 'storage', 'tabGroups']) && !shipped.host_permissions && JSON.stringify(shipped.optional_permissions ?? []) === JSON.stringify(['topSites']),
     JSON.stringify(shipped.permissions),
   )
   const enMsgs = path.join(EXT, '_locales', 'en', 'messages.json')
@@ -816,6 +816,60 @@ try {
       JSON.parse(fs.readFileSync(enMsgs, 'utf8')).extName.message === 'Stackboard: Bookmark Manager & New Tab Spaces',
     `${shipped.default_locale} ${shipped.name}`,
   )
+
+
+  // ---------- Fork: widgets, command palette, presets ----------
+  const w1 = await browser.newPage()
+  await w1.goto(NTP)
+  await w1.waitForFunction(() => !!document.querySelector('main h1'), { timeout: 10000 })
+  await sleep(600)
+  const band = await w1.evaluate(() => ({
+    clock: document.querySelector('[data-clock]')?.textContent ?? '',
+    search: !!document.querySelector('[data-search] input'),
+    cards: [...document.querySelectorAll('[data-widget]')].map((e) => e.getAttribute('data-widget')),
+  }))
+  check('widgets: clock, search and the default cards show', /\d{2}:\d{2}/.test(band.clock) && band.search && ['todo', 'quote', 'calendar', 'progress'].every((c) => band.cards.includes(c)), JSON.stringify(band))
+  await w1.type('[data-search] input', '!gh stackboard')
+  const via = await w1.evaluate(() => document.querySelector('[data-search] form span:last-child')?.textContent ?? '')
+  check('widgets: a !bang names where Enter goes', via === 'GitHub', via)
+  await w1.evaluate(() => { const i = document.querySelector('[data-search] input'); i.value = '' })
+  await w1.type('[data-widget="todo"] input[aria-label="New task"]', 'Water the plants')
+  await w1.keyboard.press('Enter')
+  await sleep(900)
+  const w2 = await browser.newPage()
+  await w2.goto(NTP)
+  await w2.waitForFunction(() => !!document.querySelector('[data-widget="todo"]'), { timeout: 10000 })
+  await sleep(500)
+  const synced = await w2.evaluate(() => document.querySelector('[data-widget="todo"]')?.textContent ?? '')
+  check('widgets: a to-do shows up in another tab', synced.includes('Water the plants'), synced.slice(0, 80))
+  await w2.close()
+
+  const MOD2 = process.platform === 'darwin' ? 'Meta' : 'Control'
+  await w1.keyboard.down(MOD2)
+  await w1.keyboard.press('KeyK')
+  await w1.keyboard.up(MOD2)
+  await w1.waitForSelector('[data-command-palette]', { timeout: 3000 })
+  await w1.keyboard.type('theme dracula')
+  await sleep(150)
+  await w1.keyboard.press('Enter')
+  await sleep(300)
+  const pal = await w1.evaluate(() => [document.documentElement.getAttribute('data-palette'), !!document.querySelector('[data-command-palette]')])
+  check('command palette: Cmd/Ctrl+K, type, Enter applies a theme', pal[0] === 'dracula' && pal[1] === false, JSON.stringify(pal))
+
+  await w1.evaluate(() => [...document.querySelectorAll('aside button')].find((b) => b.textContent.trim().startsWith('Settings')).click())
+  await w1.waitForSelector('[data-preset="terminal"]', { timeout: 5000 })
+  await w1.click('[data-preset="terminal"]')
+  await sleep(300)
+  const term = await w1.evaluate(() => {
+    const probe = (t) => { const s = document.createElement('span'); s.textContent = t; s.style.fontSize = '40px'; s.style.position = 'absolute'; document.body.append(s); const w = s.getBoundingClientRect().width; s.remove(); return w }
+    const r = document.documentElement
+    return { style: r.getAttribute('data-style'), palette: r.getAttribute('data-palette'), ambient: r.getAttribute('data-ambient'), mono: Math.abs(probe('iiiii') - probe('wwwww')) < 1 }
+  })
+  check('presets: Terminal sets style, palette and scanlines', term.style === 'terminal' && term.palette === 'phosphor' && term.ambient === 'scanlines', JSON.stringify(term))
+  check('fonts: the board font really applies (Chromium injects its own body font)', term.mono, JSON.stringify(term))
+  await w1.click('[data-preset="default"]')
+  await w1.keyboard.press('Escape')
+  await w1.close()
 
   // ---------- Brave report: buttons that did nothing ----------
   // Another Stackboard tab holding the root lock forever made every write wait forever, with no

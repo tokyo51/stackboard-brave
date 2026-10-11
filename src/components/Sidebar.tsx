@@ -7,6 +7,7 @@ import {
   Plus,
   Search,
   Settings as SettingsIcon,
+  Command as CommandIcon,
   SquareKanban,
   GripVertical,
   MoreVertical,
@@ -262,7 +263,7 @@ export function Sidebar() {
 
   if (collapsed) {
     return (
-      <aside className="flex w-12 shrink-0 flex-col items-center gap-3 border-r border-line bg-panel py-3 wallpaper:bg-panel/80 wallpaper:backdrop-blur-xl">
+      <aside data-surface="sidebar" className="flex w-12 shrink-0 flex-col items-center gap-3 border-r border-line bg-panel py-3 wallpaper:bg-panel/80 wallpaper:backdrop-blur-xl">
         <button
           onClick={toggle}
           className="rounded p-1 text-faint hover:bg-hover hover:text-fg"
@@ -289,7 +290,7 @@ export function Sidebar() {
   }
 
   return (
-    <aside className="flex w-[240px] shrink-0 flex-col border-r border-line bg-panel wallpaper:bg-panel/80 wallpaper:backdrop-blur-xl">
+    <aside data-surface="sidebar" className="flex w-[240px] shrink-0 flex-col border-r border-line bg-panel wallpaper:bg-panel/80 wallpaper:backdrop-blur-xl">
       <div className="flex items-center justify-between px-3 py-3">
         <div className="flex items-center gap-1.5 text-sm font-semibold text-strong">
           <SquareKanban className="h-4 w-4 text-accent" />
@@ -343,6 +344,14 @@ export function Sidebar() {
         >
           <SettingsIcon className="h-3.5 w-3.5" />
           Settings
+        </button>
+        <button
+          onClick={() => window.dispatchEvent(new Event('stackboard:palette'))}
+          className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm text-soft hover:bg-hover hover:text-strong compact:py-1"
+        >
+          <CommandIcon className="h-3.5 w-3.5" />
+          <span className="flex-1 text-left">Commands</span>
+          <kbd className="rounded border border-line bg-card px-1 font-sans text-[10px] leading-4 text-faint">{/Mac/i.test(navigator.platform) ? '⌘K' : 'Ctrl K'}</kbd>
         </button>
       </div>
 

@@ -57,6 +57,32 @@ Then open `chrome://extensions`, turn on **Developer mode**, click **Load unpack
 
 Manifest V3, React 18, TypeScript, Vite with the crxjs plugin, Tailwind 4, Zustand and dnd-kit. Built with Claude Code.
 
+## Fork features (0.6.0)
+
+Everything below is optional and set in **Settings** (with a jump bar: Look, Style, Motion, Widgets, Data) or from the **command palette** (Cmd/Ctrl+K). The new tab still makes no network requests unless you switch on the weather.
+
+**Presets**, one click each, all adjustable afterwards: Stackboard, Liquid Glass, Frutiger Aero, Floating, Forest calm, Terminal, Synthwave, Retro OS, Game Boy, Compact, Detailed, Zen. Export and import a look as a JSON file.
+
+**19 palettes**, grouped:
+
+| Group | Palettes |
+|---|---|
+| Classic | Stackboard, Catppuccin, Gruvbox, Nord |
+| Editor favourites | Dracula (and Alucard), Tokyo Night (Night, Day), Rosé Pine (Main, Dawn), One (Dark, Light), Monokai, Solarized |
+| Calm and natural | Everforest, Kanagawa (Wave, Lotus) |
+| Retro | Synthwave '84, Vaporwave, Phosphor (green CRT), Amber CRT, Game Boy, Windows Classic |
+| Y2K | Frutiger Aero (Sky, Night) |
+
+The extra palettes are generated from each theme's official colours by `scripts/palettes.mjs`, which derives all 59 tokens and nudges any that miss WCAG AA; the unit suite checks every variant.
+
+**Style**: surfaces (Flat, Liquid glass, Aero gloss, Floating, Terminal, Retro OS bevels), corners (sharp, soft, round), font (system, rounded, mono, serif; Nunito is bundled for rounded), density (compact, comfortable, spacious) and an optional site line under each link.
+
+**Motion**, each part on its own: amount (off, subtle, full; the OS reduced-motion setting always wins), space switch (instant, fade, slide, zoom via View Transitions), card hover (lift, 3D tilt with shine, glow), entrance (rise, cascade), animated background (aurora, drift, bubbles, synth grid, CRT lines) and a springy drop.
+
+**Widgets** in the spirit of r/startpages, above the stacks: clock with greeting and extra time zones, search with your engine (Brave Search by default), `!bangs` (`!yt`, `!gh`, `!w`, `!r`, `!tr` and more) and your own links as suggestions, to-do (synced across tabs), notes, quote of the day (bundled, offline), calendar, focus timer (pomodoro with a chime), countdown, day/week/month/year progress, weather (Open-Meteo, no key, opt-in), most visited (asks for the optional `topSites` permission only when you switch it on) and a calculator.
+
+**Also fixed**: Chromium injects its own unlayered `body { font-family }` into extension pages, which beat Tailwind's layered rule, so no font setting (upstream's Inter included) ever applied. An unlayered rule fixes it.
+
 ## Brave changes
 
 What went wrong: every write (new space, starter pack, import) first runs `ensureRoot()`, which

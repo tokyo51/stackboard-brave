@@ -1,0 +1,579 @@
+/* Fork: styles, corners, fonts, density, motion and ambient backgrounds.
+ *
+ * Everything here hangs off attributes on <html> (store/useAppearance.ts, public/theme-boot.js)
+ * and data-surface hooks on the board's parts: sidebar, stack, card, widget, header, modal.
+ * These rules sit outside Tailwind's layers on purpose, so they win over the utility classes
+ * the components carry without fighting specificity.
+ */
+
+/* ---------- Corners ---------- */
+:root[data-radius="sharp"] {
+  --radius-sm: 0;
+  --radius-md: 0;
+  --radius-lg: 0;
+  --radius-xl: 0;
+  --radius-2xl: 0;
+}
+:root[data-radius="sharp"] .rounded {
+  border-radius: 0;
+}
+:root[data-radius="round"] {
+  --radius-sm: 0.375rem;
+  --radius-md: 0.625rem;
+  --radius-lg: 0.875rem;
+  --radius-xl: 1.125rem;
+  --radius-2xl: 1.5rem;
+}
+
+/* ---------- Fonts ----------
+   Chromium has no ui-monospace / ui-serif / ui-rounded (Safari only): one of them makes the whole
+   list invalid and the page falls back to the default font. So: named system fonts, and Nunito
+   (OFL, 39 KB, public/fonts) bundled for Rounded, since no system has a rounded face Chromium sees.
+   Nothing is fetched: the new tab stays offline. */
+@font-face {
+  font-family: "Nunito Stackboard";
+  src: url("/fonts/nunito-latin-wght.woff2") format("woff2");
+  font-weight: 200 1000;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+:root[data-font="system"] {
+  --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+:root[data-font="rounded"] {
+  --font-sans: "Nunito Stackboard", system-ui, sans-serif;
+}
+:root[data-font="mono"],
+:root[data-style="terminal"] {
+  --font-sans: "SF Mono", Menlo, "JetBrains Mono", "Cascadia Code", Consolas, "DejaVu Sans Mono", monospace;
+}
+:root[data-font="serif"] {
+  --font-sans: "Iowan Old Style", Charter, "Palatino Linotype", Georgia, serif;
+}
+
+/* Chromium injects its own unlayered "body { font-family: system-ui, sans-serif }" into every
+   extension page. Tailwind's body rule lives in @layer base, and layered rules always lose to
+   unlayered ones, so the board never got its font (upstream's "Inter" never applied either).
+   This unlayered, slightly more specific rule wins. */
+html body {
+  font-family: var(--font-sans);
+}
+
+/* ---------- Spacious density ---------- */
+[data-density="spacious"] [data-stack-grid] {
+  grid-template-columns: repeat(auto-fill, minmax(288px, 1fr));
+  column-gap: 2rem;
+  row-gap: 2.25rem;
+}
+[data-density="spacious"] [data-surface="card"] > a {
+  padding-top: 0.7rem;
+  padding-bottom: 0.7rem;
+}
+
+/* ---------- Motion tempo ---------- */
+:root {
+  --sb-tempo: 1;
+  --sb-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  /* A spring with a 1.7% overshoot, sampled into linear(). */
+  --sb-spring: linear(0, 0.006, 0.025 2.8%, 0.101 6.1%, 0.539 18.9%, 0.721 25.3%, 0.849 31.5%, 0.937 38.1%, 0.968 41.8%, 0.991 45.7%, 1.006 50.1%, 1.015 55%, 1.017 63.9%, 1.001);
+}
+:root[data-motion="subtle"] {
+  --sb-tempo: 0.6;
+}
+
+/* ---------- Glass: an approximation of Apple's Liquid Glass (no official web version exists) ---------- */
+[data-style="glass"] :is([data-surface="stack"], [data-surface="widget"], [data-surface="sidebar"]) {
+  background: color-mix(in srgb, var(--sb-panel) 46%, transparent);
+  backdrop-filter: blur(26px) saturate(1.7);
+  box-shadow:
+    inset 0 1px 0 0 color-mix(in srgb, #fff 32%, transparent),
+    inset 0 0 0 1px color-mix(in srgb, #fff 12%, transparent),
+    0 24px 48px -28px color-mix(in srgb, var(--sb-shade) 60%, transparent);
+  isolation: isolate;
+}
+[data-style="glass"] :is([data-surface="stack"], [data-surface="widget"]) {
+  position: relative;
+  border-radius: var(--radius-2xl);
+  padding: 0.625rem;
+}
+/* The specular sweep across the top-left of each pane. */
+[data-style="glass"] :is([data-surface="stack"], [data-surface="widget"])::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: linear-gradient(140deg, color-mix(in srgb, #fff 20%, transparent), transparent 42%);
+  pointer-events: none;
+}
+[data-style="glass"] [data-surface="sidebar"] {
+  border-right-color: color-mix(in srgb, #fff 10%, transparent);
+}
+[data-style="glass"] [data-surface="card"] {
+  background: color-mix(in srgb, var(--sb-card) 58%, transparent);
+}
+[data-style="glass"] [data-surface="card"]:hover {
+  background: color-mix(in srgb, var(--sb-hover) 82%, transparent);
+}
+
+/* ---------- Frutiger Aero: glossy, sky and glass ---------- */
+:root {
+  --sb-gloss: rgb(255 255 255 / 0.55);
+  --sb-gloss-soft: rgb(255 255 255 / 0.18);
+}
+[data-scheme="dark"] {
+  --sb-gloss: rgb(255 255 255 / 0.16);
+  --sb-gloss-soft: rgb(255 255 255 / 0.05);
+}
+[data-style="aero"] :is([data-surface="stack"], [data-surface="widget"], [data-surface="sidebar"]) {
+  background:
+    linear-gradient(180deg, var(--sb-gloss) 0%, var(--sb-gloss-soft) 46%, transparent 47%),
+    color-mix(in srgb, var(--sb-panel) 62%, transparent);
+  backdrop-filter: blur(18px) saturate(1.8);
+  border: 1px solid color-mix(in srgb, #fff 55%, transparent);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.6),
+    0 12px 32px -14px color-mix(in srgb, var(--sb-accent) 45%, transparent);
+}
+[data-scheme="dark"][data-style="aero"] :is([data-surface="stack"], [data-surface="widget"], [data-surface="sidebar"]) {
+  border-color: color-mix(in srgb, #fff 16%, transparent);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.18),
+    0 12px 32px -14px color-mix(in srgb, var(--sb-accent) 40%, transparent);
+}
+[data-style="aero"] :is([data-surface="stack"], [data-surface="widget"]) {
+  border-radius: var(--radius-2xl);
+  padding: 0.625rem;
+}
+[data-style="aero"] [data-surface="card"] {
+  background:
+    linear-gradient(180deg, var(--sb-gloss) 0%, var(--sb-gloss-soft) 48%, transparent 52%),
+    color-mix(in srgb, var(--sb-card) 78%, transparent);
+  border-color: color-mix(in srgb, #fff 40%, transparent);
+}
+[data-style="aero"] [data-surface="card"]:hover {
+  background:
+    linear-gradient(180deg, var(--sb-gloss) 0%, var(--sb-gloss-soft) 48%, transparent 52%),
+    color-mix(in srgb, var(--sb-accent) 16%, var(--sb-card));
+}
+[data-style="aero"] .bg-accent {
+  background-image: linear-gradient(180deg, rgb(255 255 255 / 0.42), rgb(255 255 255 / 0.08) 50%, transparent 51%);
+}
+
+/* ---------- Floating: the sidebar lifts off the edge, stacks become soft panels ---------- */
+[data-style="floating"] [data-surface="sidebar"] {
+  margin: 0.75rem 0 0.75rem 0.75rem;
+  border: 0;
+  border-radius: var(--radius-2xl);
+  box-shadow: var(--shadow-panel), 0 0 0 1px var(--sb-line);
+}
+[data-style="floating"] :is([data-surface="stack"], [data-surface="widget"]) {
+  background: var(--sb-panel);
+  border-radius: var(--radius-2xl);
+  padding: 0.75rem;
+  box-shadow: 0 0 0 1px var(--sb-line), var(--shadow-chip);
+}
+[data-style="floating"] [data-surface="card"] {
+  background: transparent;
+}
+[data-style="floating"] [data-surface="card"]:hover {
+  background: var(--sb-hover);
+}
+
+/* ---------- Terminal: monospace, dashed rules, a prompt and a cursor ---------- */
+[data-style="terminal"] :is([data-surface="stack"], [data-surface="widget"]) {
+  border: 1px dashed var(--sb-line-strong);
+  border-radius: 0;
+  padding: 0.5rem;
+  background: transparent;
+}
+[data-style="terminal"] [data-surface="sidebar"] {
+  border-right-style: dashed;
+}
+[data-style="terminal"] [data-surface="stack"] h3::before {
+  content: "~/";
+  color: var(--sb-accent-text);
+}
+[data-style="terminal"] [data-surface="card"] {
+  background: transparent;
+  border-color: transparent;
+  border-radius: 0;
+}
+[data-style="terminal"] [data-surface="card"]:hover {
+  background: var(--sb-accent);
+}
+[data-style="terminal"] [data-surface="card"]:hover > a {
+  color: var(--sb-on-accent);
+}
+[data-style="terminal"] [data-surface="card"] img {
+  filter: grayscale(1) contrast(1.15);
+}
+[data-style="terminal"] [data-surface="header"] h1::before {
+  content: "$ cd ";
+  color: var(--sb-accent-text);
+  font-weight: 500;
+}
+[data-style="terminal"] [data-surface="header"] h1::after {
+  content: "\2588";
+  margin-left: 0.15em;
+  color: var(--sb-accent);
+  animation: sb-blink 1.1s steps(1) infinite;
+}
+@keyframes sb-blink {
+  50% {
+    opacity: 0;
+  }
+}
+
+/* ---------- Retro: 1995 bevels, title bars in the accent ---------- */
+:root {
+  --sb-bevel-light: color-mix(in srgb, #fff 75%, var(--sb-panel));
+  --sb-bevel-dark: color-mix(in srgb, #000 62%, var(--sb-panel));
+  --sb-bevel-mid: color-mix(in srgb, #000 30%, var(--sb-panel));
+  --sb-bevel-out:
+    inset -1px -1px var(--sb-bevel-dark), inset 1px 1px var(--sb-bevel-light),
+    inset -2px -2px var(--sb-bevel-mid), inset 2px 2px color-mix(in srgb, #fff 35%, var(--sb-panel));
+  --sb-bevel-in:
+    inset 1px 1px var(--sb-bevel-dark), inset -1px -1px var(--sb-bevel-light);
+}
+[data-style="retro"] :is([data-surface="stack"], [data-surface="widget"], [data-surface="sidebar"]) {
+  background: var(--sb-panel);
+  border: 0;
+  border-radius: 0;
+  box-shadow: var(--sb-bevel-out);
+  padding: 4px;
+}
+[data-style="retro"] [data-surface="stack"] > :first-child,
+[data-style="retro"] [data-surface="widget"] > header {
+  margin: -1px -1px 6px;
+  padding: 3px 6px;
+  background: linear-gradient(90deg, var(--sb-accent), var(--sb-brand-to));
+  color: var(--sb-on-accent);
+}
+[data-style="retro"] [data-surface="stack"] > :first-child :is(h3, svg, button),
+[data-style="retro"] [data-surface="widget"] > header * {
+  color: var(--sb-on-accent);
+}
+[data-style="retro"] [data-surface="card"] {
+  border-radius: 0;
+  border-color: transparent;
+  background: var(--sb-card);
+  box-shadow: var(--sb-bevel-in);
+}
+[data-style="retro"] [data-surface="card"]:hover {
+  background: var(--sb-accent);
+}
+[data-style="retro"] [data-surface="card"]:hover > a {
+  color: var(--sb-on-accent);
+}
+
+/* Solid panes for people who ask the OS for less transparency. */
+@media (prefers-reduced-transparency: reduce) {
+  [data-style="glass"] :is([data-surface="stack"], [data-surface="widget"], [data-surface="sidebar"]),
+  [data-style="aero"] :is([data-surface="stack"], [data-surface="widget"], [data-surface="sidebar"]) {
+    background: var(--sb-panel);
+    backdrop-filter: none;
+  }
+}
+
+/* ---------- Card hover ---------- */
+[data-surface="card"] {
+  transition:
+    translate calc(220ms * var(--sb-tempo)) var(--sb-ease-out),
+    box-shadow calc(220ms * var(--sb-tempo)) var(--sb-ease-out),
+    background-color 120ms ease;
+}
+[data-hover="lift"] [data-surface="card"]:hover {
+  translate: 0 calc(-2px * var(--sb-tempo));
+  box-shadow: var(--shadow-chip);
+}
+[data-hover="glow"] [data-surface="card"]:hover {
+  box-shadow:
+    0 0 0 1px var(--sb-accent-line),
+    0 10px 28px -12px color-mix(in srgb, var(--sb-accent) 70%, transparent);
+}
+/* Tilt: lib/tilt.ts feeds the pointer position in as --tilt-x / --tilt-y / --shine-x / --shine-y. */
+[data-hover="tilt"] [data-surface="card"]:hover {
+  transform: perspective(640px) rotateX(var(--tilt-y, 0deg)) rotateY(var(--tilt-x, 0deg));
+  box-shadow: var(--shadow-chip);
+}
+[data-hover="tilt"] [data-surface="card"]:hover::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: radial-gradient(160px circle at var(--shine-x, 50%) var(--shine-y, 50%), color-mix(in srgb, #fff 16%, transparent), transparent 70%);
+}
+
+/* ---------- Entrance: stacks and widgets rise in when a space opens ---------- */
+@keyframes sb-rise {
+  from {
+    opacity: 0;
+    transform: translateY(calc(12px * var(--sb-tempo))) scale(0.985);
+  }
+}
+[data-entrance="rise"] :is([data-surface="stack"], [data-surface="widget"]) {
+  animation: sb-rise calc(420ms * var(--sb-tempo)) var(--sb-ease-out) backwards;
+}
+[data-entrance="stagger"] :is([data-surface="stack"], [data-surface="widget"]) {
+  animation: sb-rise calc(520ms * var(--sb-tempo)) var(--sb-ease-out) backwards;
+  animation-delay: calc(min(var(--i, 0), 14) * 38ms * var(--sb-tempo));
+}
+
+/* ---------- Space switch (View Transitions; store.selectSpace starts them) ---------- */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+}
+::view-transition-group(board) {
+  animation-duration: calc(280ms * var(--sb-tempo));
+}
+@keyframes sb-out-fade {
+  to {
+    opacity: 0;
+  }
+}
+@keyframes sb-in-fade {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes sb-out-slide {
+  to {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+}
+@keyframes sb-in-slide {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+}
+@keyframes sb-out-zoom {
+  to {
+    opacity: 0;
+    transform: scale(0.97);
+    filter: blur(6px);
+  }
+}
+@keyframes sb-in-zoom {
+  from {
+    opacity: 0;
+    transform: scale(1.025);
+    filter: blur(8px);
+  }
+}
+[data-space-tx="fade"]::view-transition-old(board) {
+  animation: sb-out-fade calc(140ms * var(--sb-tempo)) ease-in both;
+}
+[data-space-tx="fade"]::view-transition-new(board) {
+  animation: sb-in-fade calc(260ms * var(--sb-tempo)) var(--sb-ease-out) both;
+}
+[data-space-tx="slide"]::view-transition-old(board) {
+  animation: sb-out-slide calc(160ms * var(--sb-tempo)) ease-in both;
+}
+[data-space-tx="slide"]::view-transition-new(board) {
+  animation: sb-in-slide calc(340ms * var(--sb-tempo)) var(--sb-ease-out) both;
+}
+[data-space-tx="zoom"]::view-transition-old(board) {
+  animation: sb-out-zoom calc(180ms * var(--sb-tempo)) ease-in both;
+}
+[data-space-tx="zoom"]::view-transition-new(board) {
+  animation: sb-in-zoom calc(360ms * var(--sb-tempo)) var(--sb-ease-out) both;
+}
+
+/* ---------- Spring on drop ---------- */
+[data-spring="on"] [data-lifted] {
+  transition-timing-function: var(--sb-spring);
+  transition-duration: calc(420ms * var(--sb-tempo));
+}
+
+/* ---------- Ambient backgrounds (components/Ambient.tsx) ---------- */
+.ambient {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+}
+.ambient-blob {
+  position: absolute;
+  width: 55vmax;
+  height: 55vmax;
+  border-radius: 50%;
+  filter: blur(70px);
+  opacity: 0.32;
+  will-change: transform;
+  animation: sb-aurora 34s ease-in-out infinite alternate;
+}
+[data-scheme="light"] .ambient-blob {
+  opacity: 0.22;
+}
+.ambient-blob:nth-child(1) {
+  background: var(--sb-accent);
+  left: -12vmax;
+  top: -14vmax;
+}
+.ambient-blob:nth-child(2) {
+  background: var(--sb-brand-to);
+  right: -16vmax;
+  top: 10vh;
+  animation-duration: 41s;
+  animation-delay: -12s;
+}
+.ambient-blob:nth-child(3) {
+  background: var(--sb-accent-mark);
+  left: 20vw;
+  bottom: -24vmax;
+  animation-duration: 47s;
+  animation-delay: -24s;
+}
+@keyframes sb-aurora {
+  0% {
+    transform: translate(0, 0) scale(1);
+  }
+  50% {
+    transform: translate(9vw, 6vh) scale(1.15);
+  }
+  100% {
+    transform: translate(-6vw, 10vh) scale(0.92);
+  }
+}
+
+.ambient-drift {
+  position: absolute;
+  inset: -50%;
+  background:
+    radial-gradient(40% 35% at 30% 30%, color-mix(in srgb, var(--sb-accent) 30%, transparent), transparent 70%),
+    radial-gradient(35% 40% at 70% 60%, color-mix(in srgb, var(--sb-brand-to) 28%, transparent), transparent 70%),
+    radial-gradient(30% 30% at 40% 80%, color-mix(in srgb, var(--sb-accent-mark) 22%, transparent), transparent 70%);
+  animation: sb-drift 90s linear infinite;
+  will-change: transform;
+}
+@keyframes sb-drift {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.ambient-bubble {
+  position: absolute;
+  bottom: -12vmax;
+  left: var(--x);
+  width: var(--s);
+  height: var(--s);
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 32% 28%, rgb(255 255 255 / 0.85) 0 9%, rgb(255 255 255 / 0.25) 10% 22%, transparent 23%),
+    radial-gradient(circle at 50% 50%, transparent 58%, color-mix(in srgb, var(--sb-accent) 40%, transparent) 70%, rgb(255 255 255 / 0.5) 74%, transparent 76%);
+  opacity: 0.7;
+  animation: sb-bubble var(--d) linear infinite;
+  animation-delay: var(--delay);
+  will-change: transform;
+}
+@keyframes sb-bubble {
+  to {
+    transform: translate(var(--sway), -125vh);
+  }
+}
+
+.ambient-grid {
+  position: absolute;
+  inset: 0;
+}
+.ambient-sun {
+  position: absolute;
+  left: 50%;
+  bottom: 38vh;
+  width: 34vmin;
+  height: 34vmin;
+  translate: -50% 50%;
+  border-radius: 50%;
+  background: linear-gradient(180deg, var(--sb-accent-mark), var(--sb-accent) 65%);
+  mask: linear-gradient(180deg, #000 52%, transparent 52% 56%, #000 56% 64%, transparent 64% 69%, #000 69% 76%, transparent 76% 82%, #000 82%);
+  opacity: 0.55;
+  filter: drop-shadow(0 0 40px var(--sb-accent));
+}
+.ambient-plane {
+  position: absolute;
+  left: -50%;
+  right: -50%;
+  bottom: -10vh;
+  height: 50vh;
+  transform: perspective(40vh) rotateX(62deg);
+  transform-origin: 50% 0;
+  background-image:
+    linear-gradient(color-mix(in srgb, var(--sb-brand-to) 55%, transparent) 2px, transparent 2px),
+    linear-gradient(90deg, color-mix(in srgb, var(--sb-brand-to) 55%, transparent) 2px, transparent 2px);
+  background-size: 60px 60px;
+  mask: linear-gradient(180deg, transparent, #000 30%);
+  animation: sb-grid 2.4s linear infinite;
+  opacity: 0.6;
+}
+@keyframes sb-grid {
+  to {
+    background-position: 0 60px;
+  }
+}
+
+/* CRT lines sit over the board, faint enough to keep text contrast. */
+.ambient-scanlines {
+  position: fixed;
+  inset: 0;
+  z-index: 55;
+  pointer-events: none;
+  background:
+    repeating-linear-gradient(180deg, rgb(0 0 0 / 0.16) 0 1px, transparent 1px 3px),
+    radial-gradient(120% 90% at 50% 50%, transparent 60%, rgb(0 0 0 / 0.35));
+  mix-blend-mode: multiply;
+  animation: sb-flicker 6s steps(2) infinite;
+}
+@keyframes sb-flicker {
+  0%,
+  96% {
+    opacity: 0.55;
+  }
+  97% {
+    opacity: 0.4;
+  }
+  100% {
+    opacity: 0.55;
+  }
+}
+
+/* ---------- Motion off, or reduced by the OS: everything rests in its final state ---------- */
+:root[data-motion="off"] :is(.ambient-blob, .ambient-drift, .ambient-bubble, .ambient-plane, .ambient-scanlines),
+:root[data-motion="off"] [data-surface="header"] h1::after {
+  animation: none;
+}
+:root[data-motion="off"] .ambient-bubble {
+  display: none;
+}
+:root[data-motion="off"] [data-surface="card"] {
+  transition: background-color 120ms ease;
+}
+@media (prefers-reduced-motion: reduce) {
+  :is(.ambient-blob, .ambient-drift, .ambient-bubble, .ambient-plane, .ambient-scanlines),
+  [data-surface="header"] h1::after,
+  :is([data-surface="stack"], [data-surface="widget"]) {
+    animation: none !important;
+  }
+  .ambient-bubble {
+    display: none;
+  }
+  [data-surface="card"] {
+    transition: none;
+  }
+  [data-surface="card"]:hover {
+    translate: none !important;
+    transform: none !important;
+  }
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation: none !important;
+  }
+}
