@@ -1,0 +1,177 @@
+/* Fork: the two "native" looks (Settings > Style > Surfaces), from design research:
+ *
+ * Apple: HIG system colours and apple.com values (VoltAgent awesome-design-md apple/DESIGN.md,
+ * developer.apple.com HIG color + materials, apple.com global header CSS). Grouped-list stacks,
+ * hairline separators instead of borders, vibrancy sidebar, pill buttons, Apple's curves.
+ * Note: in Chromium -apple-system does NOT resolve; BlinkMacSystemFont and system-ui do.
+ *
+ * Brave: Leo design tokens and the brave-core new tab page refresh (radii 16/12/8, elevation
+ * shadows, frosted widgets over wallpaper: #ffffffba blur 35px light, #000000b3 blur 50px dark).
+ */
+
+/* ---------- Apple ---------- */
+:root[data-style="apple"] {
+  --sb-ease-out: cubic-bezier(0.32, 0.72, 0, 1);
+}
+:root[data-style="apple"][data-font="system"] {
+  --font-sans: BlinkMacSystemFont, system-ui, "Segoe UI Variable Text", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+[data-style="apple"] [data-surface="sidebar"] {
+  margin: 8px 0 8px 8px;
+  border: 0;
+  border-radius: 18px;
+  background: color-mix(in srgb, var(--sb-panel) 80%, transparent);
+  backdrop-filter: saturate(180%) blur(20px);
+  box-shadow: 0 0 0 0.5px color-mix(in srgb, var(--sb-strong) 10%, transparent), 0 8px 30px -12px color-mix(in srgb, #000 30%, transparent);
+}
+[data-style="apple"] :is([data-surface="stack"], [data-surface="widget"]) {
+  background: var(--sb-card);
+  border: 0;
+  border-radius: 18px;
+  padding: 6px;
+  box-shadow: 0 1px 2px #0000000f, 0 0 0 0.5px #0000000a;
+}
+[data-scheme="dark"][data-style="apple"] :is([data-surface="stack"], [data-surface="widget"]) {
+  box-shadow: inset 0 0 0 1px #ffffff0f;
+}
+[data-style="apple"] [data-surface="widget"] {
+  padding: 16px;
+}
+[data-style="apple"] [data-surface="stack"] > :first-child {
+  padding: 8px 10px 6px;
+  margin-bottom: 0;
+}
+[data-style="apple"] [data-surface="stack"] h3 {
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.2px;
+}
+/* Rows in a grouped list: no boxes, a hairline between them that starts after the icon. */
+[data-style="apple"] [data-surface="card"] {
+  background: transparent;
+  border-color: transparent;
+  border-radius: 10px;
+}
+[data-style="apple"] [data-surface="card"]:hover {
+  background: var(--sb-hover);
+}
+[data-style="apple"] [data-surface="card"] + [data-surface="card"]::before {
+  content: "";
+  position: absolute;
+  left: 40px;
+  right: 10px;
+  top: 0;
+  height: 1px;
+  background: var(--sb-line);
+  pointer-events: none;
+}
+[data-style="apple"] [data-surface="card"]:hover::before,
+[data-style="apple"] [data-surface="card"]:hover + [data-surface="card"]::before {
+  opacity: 0;
+}
+[data-style="apple"] [data-surface="header"] h1 {
+  font-size: 28px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+}
+[data-style="apple"] [data-clock] p:nth-child(2) {
+  font-weight: 600;
+}
+[data-style="apple"] .bg-accent {
+  border-radius: 9999px;
+}
+[data-style="apple"] [data-search] form {
+  border-radius: 9999px;
+  border-color: transparent;
+  background: var(--sb-sunken);
+  box-shadow: none;
+}
+[data-style="apple"] [data-surface="modal"] {
+  border-radius: 20px;
+  box-shadow: 0 0 0 0.5px #0000001f, 0 2px 6px #00000014, 0 12px 40px #0000001f;
+}
+[data-scheme="dark"][data-style="apple"] [data-surface="modal"] {
+  box-shadow: inset 0 0 0 1px #ffffff1a, 0 12px 40px #00000080;
+}
+/* Segmented controls get the raised white thumb. */
+[data-style="apple"] [role="radiogroup"] [aria-checked="true"].bg-card {
+  border-radius: 7px;
+  box-shadow: 0 3px 8px #0000001f, 0 3px 1px #0000000a;
+}
+@media (prefers-reduced-transparency: reduce) {
+  [data-style="apple"] [data-surface="sidebar"] {
+    background: var(--sb-panel);
+    backdrop-filter: none;
+  }
+}
+
+/* ---------- Brave ---------- */
+:root[data-style="brave"] {
+  --sb-ease-out: cubic-bezier(0, 0, 0.58, 1);
+  --sb-brave-e1: 0 1px 3px 0 #00000014, 0 1px 2px -1px #00000014;
+  --sb-brave-e3: 0 10px 15px -3px #00000014, 0 4px 6px -4px #00000014;
+  --sb-brave-e4: 0 20px 25px -5px #00000014, 0 8px 10px -6px #00000014;
+}
+[data-style="brave"] [data-surface="sidebar"] {
+  border-right-color: var(--sb-line);
+}
+[data-style="brave"] :is([data-surface="stack"], [data-surface="widget"]) {
+  background: var(--sb-card);
+  border: 0;
+  border-radius: 16px;
+  padding: 12px;
+  box-shadow: var(--sb-brave-e1);
+}
+/* Over a gradient or a photo, Brave's NTP widgets are frosted. */
+:root[data-style="brave"]:is([data-bg="gradient"], [data-bg="image"]) :is([data-surface="stack"], [data-surface="widget"], [data-surface="sidebar"]) {
+  background: #ffffffba;
+  backdrop-filter: blur(35px);
+}
+:root[data-scheme="dark"][data-style="brave"]:is([data-bg="gradient"], [data-bg="image"]) :is([data-surface="stack"], [data-surface="widget"], [data-surface="sidebar"]) {
+  background: #000000b3;
+  backdrop-filter: blur(50px);
+}
+[data-style="brave"] [data-surface="stack"] > :first-child {
+  padding: 0 4px;
+}
+[data-style="brave"] [data-surface="card"] {
+  background: transparent;
+  border-color: transparent;
+  border-radius: 8px;
+}
+[data-style="brave"] [data-surface="card"]:hover {
+  background: color-mix(in srgb, var(--sb-strong) 6%, transparent);
+}
+[data-style="brave"] [data-surface="header"] h1 {
+  font-size: 28px;
+  font-weight: 600;
+  letter-spacing: -0.5px;
+}
+[data-style="brave"] [data-clock] p:nth-child(2) {
+  font-weight: 500;
+}
+[data-style="brave"] [data-search] form {
+  border-radius: 12px;
+  box-shadow: var(--sb-brave-e3);
+  transition: box-shadow 120ms var(--sb-ease-out);
+}
+[data-style="brave"] [data-search] form:hover,
+[data-style="brave"] [data-search] form:focus-within {
+  box-shadow: var(--sb-brave-e4);
+}
+[data-style="brave"] .bg-accent {
+  border-radius: 1000px;
+}
+[data-style="brave"] [data-surface="modal"] {
+  border-radius: 16px;
+  box-shadow: 0 25px 50px -12px #00000014, 0 8px 10px -6px #00000014, 0 0 0 1px var(--sb-line);
+}
+[data-style="brave"] :focus-visible {
+  box-shadow: 0 0 0 1px var(--sb-card), 0 0 0 3px var(--sb-focus);
+}
+@media (prefers-reduced-transparency: reduce) {
+  :root[data-style="brave"] :is([data-surface="stack"], [data-surface="widget"], [data-surface="sidebar"]) {
+    background: var(--sb-card) !important;
+    backdrop-filter: none !important;
+  }
+}

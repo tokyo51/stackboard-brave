@@ -26,10 +26,11 @@ export function KeepItHint() {
   }
 
   return (
+    // Bottom centre of the main column (App renders it inside <main>), clear of the header row.
     <div
       role="note"
       data-keep-hint
-      className="pointer-events-none fixed inset-x-0 top-3 z-40 flex justify-center px-4"
+      className="pointer-events-none absolute inset-x-0 bottom-6 z-40 flex justify-center px-4"
     >
       <div className="pop-in pointer-events-auto flex items-center gap-3 rounded-full bg-inverse py-1.5 pl-4 pr-1.5 text-sm text-on-inverse shadow-toast ring-1 ring-on-inverse/10 ring-inset">
         <span>

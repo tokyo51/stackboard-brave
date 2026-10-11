@@ -9,10 +9,15 @@ interface Props {
   url: string
 }
 
+// Every icon sits in the same tile: 28px with a hairline ring and the glyph at 20px (24px and
+// 16px in compact), so favicons of any shape line up as a calm column.
+const TILE =
+  'flex h-7 w-7 shrink-0 select-none items-center justify-center rounded-md ring-1 ring-inset ring-line compact:h-6 compact:w-6'
+
 export function BookmarkIcon({ emoji, title, url }: Props) {
   if (emoji) {
     return (
-      <span className="flex h-4 w-4 shrink-0 items-center justify-center text-[13px] leading-none">
+      <span data-tile className={`${TILE} bg-card text-[15px] leading-none compact:text-[13px]`}>
         {emoji}
       </span>
     )
@@ -37,15 +42,23 @@ function Favicon({ src, title, url }: { src: string; title: string; url: string 
 
   // Until resolved, hold the space so the title doesn't shift; a site with no icon never
   // flashes Chrome's grey globe on its way to the monogram.
-  if (!icon) return <span aria-hidden className="h-4 w-4 shrink-0" />
+  if (!icon) return <span aria-hidden data-tile className={TILE} />
 
   if (icon.generic || failed) {
     const m = monogram(title, url)
+    // A neutral letter tile: colour stays for favicons. The colours go through variables so a
+    // style can retint every monogram (terminal, in polish.css); the e2e suite also finds the
+    // monogram by this style attribute.
     return (
       <span
         aria-hidden
-        className="flex h-4 w-4 shrink-0 select-none items-center justify-center rounded-[4px] text-[10px] font-bold leading-none"
-        style={{ backgroundColor: `var(--sb-tint-${m.tint}-bg)`, color: `var(--sb-tint-${m.tint}-fg)` }}
+        data-tile
+        data-monogram
+        className={`${TILE} text-[12px] font-semibold leading-none compact:text-[11px]`}
+        style={{
+          backgroundColor: 'var(--sb-mono-bg, color-mix(in srgb, var(--sb-fg) 7%, var(--sb-card)))',
+          color: 'var(--sb-mono-fg, var(--sb-soft))',
+        }}
       >
         {m.letter}
       </span>
@@ -53,14 +66,16 @@ function Favicon({ src, title, url }: { src: string; title: string; url: string 
   }
 
   return (
-    <img
-      src={icon.src}
-      alt=""
-      width={16}
-      height={16}
-      draggable={false}
-      className={`h-4 w-4 shrink-0 rounded-sm ${icon.glyph ? `glyph-${icon.glyph}` : ''}`}
-      onError={() => setFailed(true)}
-    />
+    <span data-tile className={`${TILE} bg-card`}>
+      <img
+        src={icon.src}
+        alt=""
+        width={20}
+        height={20}
+        draggable={false}
+        className={`h-5 w-5 rounded-sm compact:h-4 compact:w-4 ${icon.glyph ? `glyph-${icon.glyph}` : ''}`}
+        onError={() => setFailed(true)}
+      />
+    </span>
   )
 }

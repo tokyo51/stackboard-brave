@@ -27,7 +27,9 @@ import { glyphOf } from '../src/lib/favicon'
 import { DEFAULT_WIDGETS, calculate, daysUntil, greeting, monthGrid, parseWidgets, progressOf, quoteIndexFor, resolveSearch, skyOf } from '../src/lib/widgets'
 import { readThemeFile, themeFile } from '../src/lib/themeFile'
 import { PRESETS } from '../src/lib/presets'
+import { GRADIENTS, PATTERNS, resolvedGlows, wallpaperSvg } from '../src/lib/backgrounds'
 import palettesCss from '../src/styles/palettes.css'
+import glowCss from '../src/styles/glow.generated.css'
 import { contrastRatio, gradientStops, mix, over, readPalettes } from './contrast'
 import msgEn from '../public/_locales/en/messages.json'
 import msgEs from '../public/_locales/es/messages.json'
@@ -221,7 +223,7 @@ for (const b of blocks) {
 // One documented exception: Stackboard Light keeps its original white-on-peach buttons (3.1:1,
 // AA for large text only), because 0.5.0 keeps the default look as it was.
 const EXCEPTIONS: Record<string, Record<string, number>> = {
-  'stackboard/light': { 'on-accent/accent': 3, 'on-accent/accent-hover': 3 },
+  // Fork: the accent was darkened to #be5421, so white buttons now clear full AA; no exception.
 }
 for (const b of blocks) {
   const id = `${b.palette}/${b.scheme}`
@@ -272,10 +274,10 @@ eq(
   { ...DEFAULT_APPEARANCE.bg, dim: DIM_MAX, blur: 0 },
 )
 eq('appearance: blur caps at its maximum', parseAppearance({ bg: { blur: 99 } }).bg.blur, BLUR_MAX)
-eq('appearance: gradient choice stays 1-3', [parseAppearance({ bg: { gradient: 0 } }).bg.gradient, parseAppearance({ bg: { gradient: 7 } }).bg.gradient, parseAppearance({ bg: { gradient: 2.4 } }).bg.gradient], [1, 3, 2])
+eq('appearance: gradient choice stays 1-9', [parseAppearance({ bg: { gradient: 0 } }).bg.gradient, parseAppearance({ bg: { gradient: 12 } }).bg.gradient, parseAppearance({ bg: { gradient: 2.4 } }).bg.gradient], [1, 9, 2])
 eq('appearance: numbers stored as text still read', parseAppearance({ bg: { dim: '42', blur: ' 6 ' } }).bg, { ...DEFAULT_APPEARANCE.bg, dim: 42, blur: 6 })
 eq('appearance: NaN and Infinity fall back', parseAppearance({ bg: { dim: NaN, blur: Infinity } }).bg, DEFAULT_APPEARANCE.bg)
-const picked = { ...DEFAULT_APPEARANCE, mode: 'dark', palette: 'nord', density: 'compact', bg: { kind: 'image', gradient: 2, dim: 50, blur: 8, imageRev: 1791200000000 }, style: 'glass', radius: 'round', font: 'mono', details: true, motion: { level: 'subtle', space: 'zoom', hover: 'tilt', entrance: 'stagger', ambient: 'aurora', spring: false } }
+const picked = { ...DEFAULT_APPEARANCE, mode: 'dark', palette: 'nord', density: 'compact', bg: { kind: 'image', gradient: 2, dim: 50, blur: 8, imageRev: 1791200000000, pattern: 'waves', patternStrength: 60 }, style: 'glass', radius: 'round', font: 'mono', details: true, motion: { level: 'subtle', space: 'zoom', hover: 'tilt', entrance: 'stagger', ambient: 'aurora', spring: false } }
 eq('appearance: a full image setup survives a round trip', parseAppearance(JSON.parse(JSON.stringify(picked))), picked)
 eq('appearance: merging a slider keeps the rest of the background', mergeAppearance(parseAppearance(picked), { bg: { dim: 20 } }).bg, { ...picked.bg, dim: 20 })
 eq('appearance: merging clamps too', mergeAppearance(DEFAULT_APPEARANCE, { bg: { dim: 999 } }).bg.dim, DIM_MAX)
@@ -347,6 +349,22 @@ eq('theme file: round trip keeps the look, drops the picture', (() => { const a 
 eq('theme file: anything else is refused', [readThemeFile({ version: 1 }), readThemeFile(null)], [null, null])
 eq('presets: every preset parses to a valid look', PRESETS.every((p) => JSON.stringify(mergeAppearance(DEFAULT_APPEARANCE, p.patch)) === JSON.stringify(parseAppearance(mergeAppearance(DEFAULT_APPEARANCE, p.patch)))), true)
 eq('presets: a preset palette exists', PRESETS.filter((p) => p.patch.palette && !PALETTES.some((x) => x.id === p.patch.palette)).map((p) => p.id), [])
+
+// Fork: gradients 4-9 mix palette accents into the canvas; text must stay AA on every glow centre.
+for (const b of blocks) {
+  const tok = (k: string) => b.tokens.get(k) ?? '#ff00ff'
+  const k = Number(new RegExp(`\\[data-scheme="${b.scheme}"\\]\\[data-palette="${b.palette}"\\]\\s*\\{\\s*--sb-glow:\\s*([\\d.]+)`).exec(glowCss)?.[1] ?? NaN)
+  eq(`backgrounds: ${b.palette}/${b.scheme} has a glow strength`, k > 0 && k <= 1, true)
+  const misses = GRADIENTS.filter((g) => g.glows).flatMap((g) =>
+    resolvedGlows(g.id, tok, k).glows.flatMap((gl) =>
+      ['strong', 'fg', 'muted'].filter((f) => contrastRatio(tok(f), gl.color) < 4.5).map((f) => `${g.name} ${f} on ${gl.color} ${round2(contrastRatio(tok(f), gl.color))}`),
+    ),
+  )
+  eq(`backgrounds: ${b.palette}/${b.scheme} text stays AA on gradients 4-9`, misses, [])
+}
+eq('backgrounds: palette gradients parse for the wallpaper export', resolvedGlows(1, (k) => blocks[0].tokens.get(k) ?? '').glows.length, 2)
+eq('backgrounds: unknown pattern falls back to none', parseAppearance({ bg: { pattern: 'paisley' } }).bg.pattern, 'none')
+eq('backgrounds: wallpaper SVG has the canvas, every glow and the pattern', (() => { const svg = wallpaperSvg({ width: 100, height: 50, canvas: '#101010', glows: [{ w: 50, h: 40, x: 0, y: 0, fade: 70, color: '#334455' }], pattern: PATTERNS[0], patternColor: '#ffffff', patternAlpha: 0.2, scale: 2 }); return [svg.includes('fill="#101010"'), svg.includes('stop-color="#334455"'), svg.includes('<pattern id="p"')] })(), [true, true, true])
 
 console.log(fails ? `\n${fails} FAILED` : '\nALL PASS')
 process.exit(fails ? 1 : 0)

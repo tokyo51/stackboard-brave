@@ -111,20 +111,25 @@ function SortableSpaceRow({ space, active, onClick }: SortableSpaceProps) {
         setNodeRef(el)
       }}
       style={style}
-      className={`group flex items-center rounded-md transition-colors ${
+      className={`group relative flex items-center rounded-md transition-colors ${
         stackIncoming ? 'bg-accent-soft ring-2 ring-accent-line' : ''
       } ${isDragging ? 'opacity-30' : ''}`}
     >
+      {/* The grip hangs in the list's left padding, out of the flow, so the space pill starts on
+          the same line as the Settings and Commands rows above. */}
       <button
         {...attributes}
         {...listeners}
-        className="cursor-grab text-ghost opacity-0 group-hover:opacity-100 hover:text-muted active:cursor-grabbing"
+        // Pointer-only: there is no keyboard sorting, so the grip stays out of the tab order.
+        tabIndex={-1}
+        className="absolute -left-3 top-1/2 -translate-y-1/2 cursor-grab text-ghost opacity-0 group-hover:opacity-100 hover:text-muted active:cursor-grabbing"
         aria-label="Drag space"
       >
         <GripVertical className="h-3.5 w-3.5" />
       </button>
       <button
         onClick={onClick}
+        aria-current={active ? 'true' : undefined}
         className={`flex min-w-0 flex-1 items-center gap-2 rounded-md px-2 py-1.5 text-sm compact:py-1 ${
           active
             ? 'bg-selected text-strong font-medium'
@@ -316,7 +321,7 @@ export function Sidebar() {
             onKeyDown={onSearchKey}
             placeholder="Search all spaces"
             aria-label="Search all spaces"
-            className="peer w-full rounded-md border border-line bg-sunken py-1.5 pl-7 pr-7 text-sm text-fg placeholder:text-faint focus:border-focus focus:bg-card focus:outline-none"
+            className="peer w-full rounded-md border border-line bg-sunken py-1.5 pl-7 pr-7 text-sm text-fg placeholder:text-muted focus:border-focus focus:bg-card focus:outline-none"
           />
           {search ? (
             <button
@@ -330,7 +335,7 @@ export function Sidebar() {
               <X className="h-3.5 w-3.5" />
             </button>
           ) : (
-            <kbd className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 rounded border border-line bg-card px-1 font-sans text-[10px] leading-4 text-faint peer-focus:hidden">
+            <kbd className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 rounded border border-line bg-card px-1 font-sans text-[10px] leading-4 text-muted peer-focus:hidden">
               /
             </kbd>
           )}
@@ -351,7 +356,7 @@ export function Sidebar() {
         >
           <CommandIcon className="h-3.5 w-3.5" />
           <span className="flex-1 text-left">Commands</span>
-          <kbd className="rounded border border-line bg-card px-1 font-sans text-[10px] leading-4 text-faint">{/Mac/i.test(navigator.platform) ? '⌘K' : 'Ctrl K'}</kbd>
+          <kbd className="rounded border border-line bg-card px-1 font-sans text-[10px] leading-4 text-muted">{/Mac/i.test(navigator.platform) ? '⌘K' : 'Ctrl K'}</kbd>
         </button>
       </div>
 
@@ -371,7 +376,7 @@ export function Sidebar() {
         </button>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-2 pb-3">
+      <div className="flex-1 overflow-y-auto px-3 pb-3">
         <SortableContext
           items={spaces.map((s) => `sp:${s.id}`)}
           strategy={verticalListSortingStrategy}
@@ -385,7 +390,7 @@ export function Sidebar() {
                   onClick={() => goToSpace(s.id)}
                 />
                 {s.id === selectedId && (
-                  <div className="ml-7 mt-0.5 flex flex-col gap-0.5">
+                  <div className="ml-6 mt-0.5 flex flex-col gap-0.5">
                     {filteredStacks.map((st) => (
                       <a
                         key={st.id}

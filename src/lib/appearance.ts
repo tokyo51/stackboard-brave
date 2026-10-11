@@ -3,22 +3,23 @@
 // store/useAppearance.ts; the colours themselves live in styles/palettes.css.
 
 import { GENERATED_PALETTES, type GeneratedPaletteId } from './palettes.generated'
+import { GRADIENT_COUNT, PATTERN_IDS, gradientCss, type PatternId } from './backgrounds'
 
 export type Mode = 'system' | 'light' | 'dark'
 export type Scheme = 'light' | 'dark'
 export type PaletteId = 'stackboard' | 'catppuccin' | 'gruvbox' | 'nord' | GeneratedPaletteId
 /** Where a palette sits in Settings. */
-export type PaletteGroup = 'Classic' | 'Dev' | 'Calm' | 'Retro' | 'Y2K'
+export type PaletteGroup = 'Native' | 'Classic' | 'Dev' | 'Calm' | 'Retro' | 'Y2K'
 export type Density = 'comfortable' | 'compact' | 'spacious'
 /** Fork: how surfaces are drawn. flat is the original look. */
-export type Style = 'flat' | 'glass' | 'aero' | 'floating' | 'terminal' | 'retro'
+export type Style = 'flat' | 'glass' | 'aero' | 'floating' | 'terminal' | 'retro' | 'apple' | 'brave'
 export type Radius = 'sharp' | 'soft' | 'round'
 export type Font = 'system' | 'rounded' | 'mono' | 'serif'
 export type MotionLevel = 'off' | 'subtle' | 'full'
-export type SpaceTransition = 'none' | 'fade' | 'slide' | 'zoom'
+export type SpaceTransition = 'none' | 'fade' | 'slide' | 'zoom' | 'swipe' | 'blur'
 export type HoverEffect = 'none' | 'lift' | 'tilt' | 'glow'
 export type Entrance = 'none' | 'rise' | 'stagger'
-export type Ambient = 'none' | 'aurora' | 'drift' | 'bubbles' | 'grid' | 'scanlines'
+export type Ambient = 'none' | 'aurora' | 'drift' | 'bubbles' | 'grid' | 'scanlines' | 'stars' | 'waves' | 'fireflies' | 'lava'
 
 export interface Motion {
   level: MotionLevel
@@ -30,7 +31,8 @@ export interface Motion {
   spring: boolean
 }
 export type BgKind = 'solid' | 'gradient' | 'image'
-export type GradientId = 1 | 2 | 3
+/** 1-3: the palette's own gradients; 4-9: glows mixed from its accents (lib/backgrounds.ts). */
+export type GradientId = number
 
 export interface Background {
   kind: BgKind
@@ -41,6 +43,10 @@ export interface Background {
   blur: number
   /** Bumped whenever a new picture is saved; other open tabs reload it when it changes. */
   imageRev: number
+  /** Fork: a pattern laid over the solid or gradient background. */
+  pattern: PatternId
+  /** 1-100: how strongly the pattern shows. */
+  patternStrength: number
 }
 
 export interface Appearance {
@@ -75,6 +81,7 @@ export const PALETTES: readonly PaletteInfo[] = [
 ]
 
 export const PALETTE_GROUPS: ReadonlyArray<{ id: PaletteGroup; label: string }> = [
+  { id: 'Native', label: 'Apple and Brave' },
   { id: 'Classic', label: 'Classic' },
   { id: 'Dev', label: 'Editor favourites' },
   { id: 'Calm', label: 'Calm and natural' },
@@ -89,7 +96,7 @@ export const DEFAULT_APPEARANCE: Appearance = {
   mode: 'system',
   palette: 'stackboard',
   density: 'comfortable',
-  bg: { kind: 'solid', gradient: 1, dim: 35, blur: 0, imageRev: 0 },
+  bg: { kind: 'solid', gradient: 1, dim: 35, blur: 0, imageRev: 0, pattern: 'none', patternStrength: 40 },
   style: 'flat',
   radius: 'soft',
   font: 'system',
@@ -141,14 +148,14 @@ export function variantName(palette: PaletteId, scheme: Scheme): string {
 
 const MODES: readonly Mode[] = ['system', 'light', 'dark']
 const DENSITIES: readonly Density[] = ['comfortable', 'compact', 'spacious']
-export const STYLES: readonly Style[] = ['flat', 'glass', 'aero', 'floating', 'terminal', 'retro']
+export const STYLES: readonly Style[] = ['flat', 'glass', 'aero', 'floating', 'terminal', 'retro', 'apple', 'brave']
 export const RADII: readonly Radius[] = ['sharp', 'soft', 'round']
 export const FONTS: readonly Font[] = ['system', 'rounded', 'mono', 'serif']
 const LEVELS: readonly MotionLevel[] = ['off', 'subtle', 'full']
-const SPACE_TX: readonly SpaceTransition[] = ['none', 'fade', 'slide', 'zoom']
+const SPACE_TX: readonly SpaceTransition[] = ['none', 'fade', 'slide', 'zoom', 'swipe', 'blur']
 const HOVERS: readonly HoverEffect[] = ['none', 'lift', 'tilt', 'glow']
 const ENTRANCES: readonly Entrance[] = ['none', 'rise', 'stagger']
-export const AMBIENTS: readonly Ambient[] = ['none', 'aurora', 'drift', 'bubbles', 'grid', 'scanlines']
+export const AMBIENTS: readonly Ambient[] = ['none', 'aurora', 'drift', 'bubbles', 'grid', 'scanlines', 'stars', 'waves', 'fireflies', 'lava']
 const KINDS: readonly BgKind[] = ['solid', 'gradient', 'image']
 
 function pick<T extends string>(value: unknown, allowed: readonly T[], fallback: T): T {
@@ -176,10 +183,12 @@ export function parseAppearance(raw: unknown): Appearance {
     density: pick(o.density, DENSITIES, d.density),
     bg: {
       kind: pick(b.kind, KINDS, d.bg.kind),
-      gradient: clampInt(b.gradient, 1, 3, d.bg.gradient) as GradientId,
+      gradient: clampInt(b.gradient, 1, GRADIENT_COUNT, d.bg.gradient),
       dim: clampInt(b.dim, 0, DIM_MAX, d.bg.dim),
       blur: clampInt(b.blur, 0, BLUR_MAX, d.bg.blur),
       imageRev: clampInt(b.imageRev, 0, Number.MAX_SAFE_INTEGER, 0),
+      pattern: pick(b.pattern, PATTERN_IDS, d.bg.pattern),
+      patternStrength: clampInt(b.patternStrength, 1, 100, d.bg.patternStrength),
     },
     style: pick(o.style, STYLES, d.style),
     radius: pick(o.radius, RADII, d.radius),
@@ -210,6 +219,8 @@ export interface BootMirror {
   gradient: GradientId
   /** Fork: the extra <html> attributes, ready to set. */
   attrs: Record<string, string>
+  /** Fork: custom properties, ready to set. */
+  vars: Record<string, string>
   settings: Appearance
 }
 
@@ -222,6 +233,7 @@ export function bootMirror(a: Appearance): BootMirror {
     bg: a.bg.kind,
     gradient: a.bg.gradient,
     attrs: styleAttributes(a),
+    vars: styleVars(a),
     settings: a,
   }
 }
@@ -265,5 +277,14 @@ export function styleAttributes(a: Appearance): Record<string, string> {
     'data-ambient': m.ambient,
     'data-space-tx': off ? 'none' : m.space,
     'data-spring': !off && m.spring ? 'on' : 'off',
+    'data-pattern': a.bg.kind === 'image' ? 'none' : a.bg.pattern,
+  }
+}
+
+/** Custom properties <html> carries for the background (the chosen gradient, the pattern's strength). */
+export function styleVars(a: Appearance): Record<string, string> {
+  return {
+    '--sb-bg-layer': gradientCss(a.bg.gradient),
+    '--sb-pattern-alpha': String(Math.round(a.bg.patternStrength * 0.22) / 100),
   }
 }

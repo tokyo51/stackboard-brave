@@ -39,7 +39,7 @@ export const WIDGETS: readonly WidgetInfo[] = [
   { id: 'pomodoro', name: 'Focus timer', blurb: 'Pomodoro rounds with a soft chime.', zone: 'card' },
   { id: 'countdown', name: 'Countdown', blurb: 'Days until something you care about.', zone: 'card' },
   { id: 'progress', name: 'Progress', blurb: 'How much of the day, week and year is gone.', zone: 'card' },
-  { id: 'weather', name: 'Weather', blurb: 'Open-Meteo, no account. Only fetches once on.', zone: 'card', network: true },
+  { id: 'weather', name: 'Weather', blurb: 'Forecast from Open-Meteo, no account. Nothing is fetched until you switch it on.', zone: 'card', network: true },
   { id: 'topsites', name: 'Most visited', blurb: 'Your top sites from the browser.', zone: 'card', permission: 'topSites' },
   { id: 'calculator', name: 'Calculator', blurb: 'Type a sum, see the answer.', zone: 'card' },
 ]

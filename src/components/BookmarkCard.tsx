@@ -129,7 +129,7 @@ export function BookmarkCard({ bookmark, sortable = true, top = false }: Props) 
         draggable={false}
         title={tooltip}
         onClick={onLinkClick}
-        className={`flex items-center gap-2 rounded-lg py-2 pl-2.5 pr-9.5 ${grab} focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus compact:py-1 ${
+        className={`flex items-center gap-2.5 rounded-lg py-[3px] pl-2.5 pr-9.5 ${grab} focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus compact:gap-2 compact:py-0.5 ${
           isDragging ? 'invisible' : ''
         }`}
       >
@@ -138,7 +138,7 @@ export function BookmarkCard({ bookmark, sortable = true, top = false }: Props) 
           {isOpen && (
             <span
               aria-hidden
-              className="absolute -bottom-1 -right-1 h-2 w-2 rounded-full bg-accent ring-2 ring-card"
+              className="absolute -bottom-0.5 -right-0.5 h-2 w-2 rounded-full bg-accent ring-2 ring-card"
             />
           )}
         </span>
@@ -155,7 +155,7 @@ export function BookmarkCard({ bookmark, sortable = true, top = false }: Props) 
       {top && !isDragging && (
         <kbd
           aria-hidden
-          className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 rounded border border-line bg-sunken px-1 font-sans text-[10px] leading-4 text-faint group-hover/card:opacity-0"
+          className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 rounded border border-line bg-sunken px-1 font-sans text-[10px] leading-4 text-muted group-hover/card:opacity-0"
         >
           ↵
         </kbd>

@@ -47,10 +47,12 @@ import { faviconUrl } from '../lib/favicon'
 import { openHere, openInNewTab } from '../lib/tabs'
 import { useStackableStore } from '../store/useStackableStore'
 import { useWidgets, type Todo } from '../store/useWidgets'
+import { useEntrance } from './StackColumn'
 
-// Fork: the widget band above the stacks (Settings > Widgets). A hero row with the clock and
-// search, then a grid of cards. Every card is a data-surface="widget", so the board styles
-// (glass, aero, floating, terminal, retro) and the entrance animation apply to it too.
+// Fork: widgets (Settings > Widgets). A compact hero row with the clock and search sits above
+// the stacks; the grid of cards sits below them, so bookmarks are on screen first. Every card is
+// a data-surface="widget", so the board styles (glass, aero, floating, terminal, retro) and the
+// entrance animation apply to it too.
 
 /** The current time, re-rendered on the next whole second or minute. */
 function useNow(every: 'second' | 'minute'): Date {
@@ -72,7 +74,25 @@ function useNow(every: 'second' | 'minute'): Date {
 // The board's words are English, so dates are too (en-GB reads day-month and 24-hour naturally).
 const locale = 'en-GB'
 
-export function WidgetBand() {
+/** Clock and search: one row across the top of the board, never taller than ~96px. */
+export function WidgetHero() {
+  const settings = useWidgets((s) => s.settings)
+  const on = settings.enabled
+  if (settings.collapsed || (!on.clock && !on.search)) return null
+  return (
+    <section
+      data-widget-hero
+      aria-label="Clock and search"
+      className="mb-6 flex flex-wrap items-center gap-x-8 gap-y-4 compact:mb-4 compact:gap-x-6"
+    >
+      {on.clock && <ClockHero />}
+      {on.search && <SearchBox />}
+    </section>
+  )
+}
+
+/** The widget cards, below the stacks so the bookmarks come first. */
+export function WidgetCards() {
   const settings = useWidgets((s) => s.settings)
   const on = settings.enabled
   if (settings.collapsed) return null
@@ -89,38 +109,37 @@ export function WidgetBand() {
     ['calculator', () => <CalculatorCard />],
   ]
   const shown = cards.filter(([id]) => on[id])
-  if (!on.clock && !on.search && !shown.length) return null
+  if (!shown.length) return null
   return (
-    <section data-widgets aria-label="Widgets" className="mb-8 compact:mb-6">
-      {(on.clock || on.search) && (
-        <div className="mb-6 flex flex-wrap items-end gap-x-10 gap-y-5 compact:mb-4">
-          {on.clock && <ClockHero />}
-          {on.search && <SearchBox />}
-        </div>
-      )}
-      {shown.length > 0 && (
-        <div
-          data-widget-grid
-          className="grid grid-cols-[repeat(auto-fill,minmax(244px,1fr))] items-start gap-6 compact:grid-cols-[repeat(auto-fill,minmax(212px,1fr))] compact:gap-4"
-        >
-          {shown.map(([id, render], i) => (
-            <WidgetShell key={id} index={i} id={id}>
-              {render()}
-            </WidgetShell>
-          ))}
-        </div>
-      )}
+    <section data-widgets aria-label="Widgets" className="mt-10 compact:mt-7">
+      {/* Same columns as the stack grid, so widget and stack columns line up. Rows stretch,
+          so the cards in a row share one height. */}
+      <div
+        data-widget-grid
+        className="grid grid-cols-[repeat(auto-fill,minmax(244px,1fr))] items-stretch gap-6 compact:grid-cols-[repeat(auto-fill,minmax(212px,1fr))] compact:gap-4"
+      >
+        {shown.map(([id, render], i) => (
+          <WidgetShell key={id} index={i} id={id}>
+            {render()}
+          </WidgetShell>
+        ))}
+      </div>
     </section>
   )
 }
 
+// A quiet well, not a white card: the bookmark cards stay the brightest layer on the board.
+// No horizontal padding of its own; polish.css insets the children by --sb-inset so a widget's
+// icon starts on the same line as a stack's title and its link icons.
 function WidgetShell({ id, index, children }: { id: WidgetId; index: number; children: ReactNode }) {
+  const enter = useEntrance()
   return (
     <section
       data-surface="widget"
       data-widget={id}
+      data-enter={enter}
       style={{ '--i': index } as CSSProperties}
-      className="flex min-w-0 flex-col rounded-xl border border-line bg-card p-3.5 text-sm text-fg wallpaper:bg-panel/70 wallpaper:backdrop-blur-xl"
+      className="flex min-w-0 flex-col rounded-xl bg-well py-3.5 text-sm text-fg compact:py-3 wallpaper:bg-panel/70 wallpaper:px-2 wallpaper:backdrop-blur-xl"
     >
       {children}
     </section>
@@ -150,29 +169,28 @@ function ClockHero() {
   const period = time.find((p) => p.type === 'dayPeriod')?.value
   const date = new Intl.DateTimeFormat(locale, { weekday: 'long', day: 'numeric', month: 'long' }).format(now)
   return (
-    <div data-clock className="on-wallpaper min-w-0">
-      <p className="text-sm font-medium text-muted">
+    <div data-clock className="on-wallpaper min-w-0 shrink-0">
+      <p className="text-[13px] font-medium leading-4 text-muted">
         {greeting(now.getHours())}
         {name ? `, ${name}` : ''}
       </p>
-      <p className="mt-0.5 flex items-baseline gap-1.5 font-semibold leading-none tracking-tight text-strong tabular-nums">
-        <span className="text-[56px] compact:text-[44px]">{main}</span>
-        {seconds && <span className="text-2xl text-muted">{String(now.getSeconds()).padStart(2, '0')}</span>}
-        {period && <span className="text-xl text-muted">{period}</span>}
+      <p className="mt-1 flex items-baseline gap-1.5 font-medium leading-none tracking-tight text-strong tabular-nums">
+        <span className="text-[44px] compact:text-[36px]">{main}</span>
+        {seconds && <span className="text-lg text-muted">{String(now.getSeconds()).padStart(2, '0')}</span>}
+        {period && <span className="text-base text-muted">{period}</span>}
       </p>
-      <p className="mt-1.5 text-sm text-soft">{date}</p>
-      {zones.length > 0 && (
-        <p className="mt-1 flex flex-wrap gap-x-3 text-xs text-muted tabular-nums">
-          {zones.map((z) => (
-            <span key={z}>
-              {z.split('/').pop()?.replace(/_/g, ' ')}{' '}
-              <span className="text-fg">
-                {new Intl.DateTimeFormat(locale, { hour: '2-digit', minute: '2-digit', hour12: !h24, timeZone: z }).format(now)}
-              </span>
+      {/* Date and any extra time zones share one line, so the hero stays a single compact row. */}
+      <p className="mt-1.5 flex flex-wrap items-baseline gap-x-3 text-[13px] leading-4 text-soft tabular-nums">
+        <span>{date}</span>
+        {zones.map((z) => (
+          <span key={z} className="text-xs text-muted">
+            {z.split('/').pop()?.replace(/_/g, ' ')}{' '}
+            <span className="text-fg">
+              {new Intl.DateTimeFormat(locale, { hour: '2-digit', minute: '2-digit', hour12: !h24, timeZone: z }).format(now)}
             </span>
-          ))}
-        </p>
-      )}
+          </span>
+        ))}
+      </p>
     </div>
   )
 }
@@ -202,14 +220,15 @@ function SearchBox() {
   }
 
   return (
-    <div data-search className="relative min-w-[260px] max-w-2xl flex-1">
+    // flex-1 with no max width: the box runs to the right edge of the stack grid below it.
+    <div data-search className="relative min-w-[260px] flex-1">
       <form
         role="search"
         onSubmit={(e) => {
           e.preventDefault()
           go(false)
         }}
-        className="flex items-center gap-2 rounded-xl border border-line-strong bg-card px-3.5 py-2.5 shadow-xs focus-within:border-accent-line focus-within:ring-2 focus-within:ring-focus/30 wallpaper:bg-panel/80 wallpaper:backdrop-blur-xl"
+        className="flex items-center gap-2 rounded-xl border border-line-strong bg-card px-3.5 py-2.5 shadow-xs focus-within:border-focus focus-within:ring-2 focus-within:ring-focus/25 wallpaper:bg-panel/80 wallpaper:backdrop-blur-xl"
       >
         <Search className="h-4 w-4 shrink-0 text-faint" aria-hidden />
         <input
@@ -252,7 +271,7 @@ function SearchBox() {
               <a
                 href={b.url}
                 onMouseEnter={() => setActive(i)}
-                className={`flex items-center gap-2.5 px-3 py-1.5 text-sm ${i === active ? 'bg-selected text-strong' : 'text-fg'}`}
+                className={`flex items-center gap-2.5 px-3 py-1.5 text-sm ${i === active ? 'bg-accent-soft text-strong' : 'text-fg'}`}
               >
                 <img src={faviconUrl(b.url, 16)} alt="" className="h-4 w-4 shrink-0" />
                 <span className="min-w-0 flex-1 truncate">{b.title}</span>
@@ -298,7 +317,7 @@ function TodoCard() {
           onChange={(e) => setText(e.target.value)}
           placeholder="Add a task and press Enter"
           aria-label="New task"
-          className="w-full rounded-md border border-line bg-sunken px-2.5 py-1.5 text-sm text-fg outline-none placeholder:text-muted focus:border-accent-line"
+          className="w-full rounded-md border border-line bg-sunken px-2.5 py-1.5 text-sm text-fg placeholder:text-muted focus:border-focus focus:outline-none focus:ring-2 focus:ring-focus/25"
         />
       </form>
       {todos.length > 0 && (
@@ -347,7 +366,7 @@ function NotesCard() {
         rows={6}
         placeholder="Anything worth keeping. Saved as you type."
         aria-label="Notes"
-        className="no-scrollbar w-full resize-y rounded-md border border-line bg-sunken px-2.5 py-2 text-sm leading-relaxed text-fg outline-none placeholder:text-muted focus:border-accent-line"
+        className="no-scrollbar resize-y rounded-md border border-line bg-sunken px-2.5 py-2 text-sm leading-relaxed text-fg placeholder:text-muted focus:border-focus focus:outline-none focus:ring-2 focus:ring-focus/25"
       />
     </>
   )
@@ -401,39 +420,43 @@ function CalendarCard() {
           <ChevronRight className="h-3.5 w-3.5" />
         </button>
       </CardHeader>
-      <table className="w-full table-fixed text-center text-xs tabular-nums">
-        <thead>
-          <tr>
-            {dayNames.map((d, i) => (
-              <th key={i} className="pb-1 font-medium text-muted">
-                {d}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {weeks.map((w, i) => (
-            <tr key={i}>
-              {w.map((d, j) => {
-                const today = isThisMonth && d === now.getDate()
-                return (
-                  <td key={j} className="p-0.5">
-                    {d && (
-                      <span
-                        className={`mx-auto flex h-6 w-6 items-center justify-center rounded-full ${
-                          today ? 'bg-accent font-semibold text-on-accent' : j >= 5 ? 'text-muted' : 'text-fg'
-                        }`}
-                      >
-                        {d}
-                      </span>
-                    )}
-                  </td>
-                )
-              })}
+      {/* Wrapped: the widget insets its direct children with margins, and a full-width table
+          plus margins would overflow the card. */}
+      <div>
+        <table className="w-full table-fixed text-center text-xs tabular-nums">
+          <thead>
+            <tr>
+              {dayNames.map((d, i) => (
+                <th key={i} className="pb-1 font-medium text-muted">
+                  {d}
+                </th>
+              ))}
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {weeks.map((w, i) => (
+              <tr key={i}>
+                {w.map((d, j) => {
+                  const today = isThisMonth && d === now.getDate()
+                  return (
+                    <td key={j} className="p-0.5">
+                      {d && (
+                        <span
+                          className={`mx-auto flex h-6 w-6 items-center justify-center rounded-full ${
+                            today ? 'bg-accent font-semibold text-on-accent' : j >= 5 ? 'text-muted' : 'text-fg'
+                          }`}
+                        >
+                          {d}
+                        </span>
+                      )}
+                    </td>
+                  )
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </>
   )
 }
@@ -498,8 +521,9 @@ function PomodoroCard() {
           {work}/{rest} min
         </span>
       </CardHeader>
-      <div className="flex items-center gap-4">
-        <svg viewBox="0 0 80 80" className="h-20 w-20 shrink-0 -rotate-90" aria-hidden>
+      {/* Compact columns are 212px: a smaller ring, a tighter gap and wrapping controls keep it inside. */}
+      <div className="flex items-center gap-4 compact:gap-3">
+        <svg viewBox="0 0 80 80" className="h-20 w-20 shrink-0 -rotate-90 compact:h-16 compact:w-16" aria-hidden>
           <circle cx="40" cy="40" r={R} fill="none" stroke="var(--sb-line)" strokeWidth="6" />
           <circle
             cx="40"
@@ -515,13 +539,13 @@ function PomodoroCard() {
           />
         </svg>
         <div className="min-w-0">
-          <p className="text-3xl font-semibold tabular-nums text-strong" aria-live="polite">
+          <p className="text-3xl font-semibold tabular-nums text-strong compact:text-2xl" aria-live="polite">
             {mm}:{ss}
           </p>
-          <div className="mt-1.5 flex gap-1">
+          <div className="mt-1.5 flex flex-wrap gap-1">
             <button
               onClick={() => set(running ? { ...p, endsAt: null, left } : { ...p, endsAt: Date.now() + left, left: null })}
-              className="inline-flex items-center gap-1 rounded-md bg-accent px-2.5 py-1 text-xs font-semibold text-on-accent hover:bg-accent-hover"
+              className="inline-flex items-center gap-1 rounded-md bg-accent px-2 py-1 text-xs font-semibold text-on-accent hover:bg-accent-hover"
             >
               {running ? <Pause className="h-3 w-3" /> : <Play className="h-3 w-3" />}
               {running ? 'Pause' : p.left ? 'Resume' : 'Start'}
@@ -705,7 +729,7 @@ function WeatherCard() {
             placeholder="Your city, then Enter"
             aria-label="City for the weather"
             disabled={busy}
-            className="w-full rounded-md border border-line bg-sunken px-2.5 py-1.5 text-sm text-fg outline-none placeholder:text-muted focus:border-accent-line"
+            className="w-full rounded-md border border-line bg-sunken px-2.5 py-1.5 text-sm text-fg placeholder:text-muted focus:border-focus focus:outline-none focus:ring-2 focus:ring-focus/25"
           />
         </form>
         <p className="mt-2 text-xs text-muted">{error ?? 'Forecast from Open-Meteo. Only your city is sent.'}</p>
@@ -832,7 +856,7 @@ function CalculatorCard() {
           onChange={(e) => setExpr(e.target.value)}
           placeholder="12 * (4 + 3) ^ 2"
           aria-label="Sum to work out"
-          className="w-full rounded-md border border-line bg-sunken px-2.5 py-1.5 font-mono text-sm text-fg outline-none placeholder:text-muted focus:border-accent-line"
+          className="w-full rounded-md border border-line bg-sunken px-2.5 py-1.5 font-mono text-sm text-fg placeholder:text-muted focus:border-focus focus:outline-none focus:ring-2 focus:ring-focus/25"
         />
       </form>
       <p className="mt-2 min-h-7 text-right text-2xl font-semibold tabular-nums text-strong">{result !== null && expr ? `= ${fmt(result)}` : ''}</p>

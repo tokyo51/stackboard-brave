@@ -10,6 +10,16 @@ import { glow, reducedMotion } from '../lib/motion'
 import { useTwoStep } from '../hooks/useTwoStep'
 import { BookmarkCard } from './BookmarkCard'
 
+/**
+ * '' when this element mounts after the board's first paint (a space switch, a new stack), so
+ * polish.css lets the entrance play; undefined for the board a new tab opens with, which shows
+ * still. Read once at mount: flipping it later would restart the animation.
+ */
+export function useEntrance(): '' | undefined {
+  const [enter] = useState<'' | undefined>(() => (document.documentElement.hasAttribute('data-booted') ? '' : undefined))
+  return enter
+}
+
 interface Props {
   stack: Stack
   /** Position in the space, for the staggered entrance. */
@@ -26,6 +36,7 @@ export function StackColumn({ stack, index = 0 }: Props) {
   const columnRef = useRef<HTMLDivElement | null>(null)
   const listRef = useRef<HTMLDivElement | null>(null)
   const count = stack.bookmarks.length
+  const enter = useEntrance()
 
   const { attributes, listeners, setNodeRef: setSortNode, transform, transition, isDragging } =
     useSortable({
@@ -74,19 +85,28 @@ export function StackColumn({ stack, index = 0 }: Props) {
       // inline style, and a re-render mustn't overwrite that mid-drop.
       style={{ transform: CSS.Translate.toString(transform), transition, '--i': index } as React.CSSProperties}
       data-surface="stack"
+      data-enter={enter}
       // Over a wallpaper each stack becomes a frosted tile, header included, so it reads on any photo.
       className={`group/stack flex min-w-0 flex-col wallpaper:rounded-2xl wallpaper:bg-panel/55 wallpaper:p-2 wallpaper:ring-1 wallpaper:ring-line/50 wallpaper:backdrop-blur-xl ${
         isDragging ? 'opacity-30' : ''
       }`}
       id={`stack-${stack.id}`}
     >
+      {/* Pointer-only drag handle: there is no keyboard sensor, so it stays out of the tab order.
+          polish.css insets it by --sb-inset, the line every stack title, link icon and widget
+          icon starts on; the grip hangs in the margin left of the title, out of the flow. */}
       <div
         {...attributes}
         {...listeners}
-        className="mb-3 flex items-center gap-1.5 cursor-grab active:cursor-grabbing compact:mb-2 wallpaper:mb-2 wallpaper:px-1"
+        tabIndex={-1}
+        data-stack-head
+        className="relative mb-3 flex items-center gap-1.5 cursor-grab active:cursor-grabbing compact:mb-2 wallpaper:mb-2"
         aria-label="Drag stack header"
       >
-        <GripVertical className="h-4 w-4 shrink-0 text-ghost opacity-0 transition-opacity group-hover/stack:opacity-100" />
+        <GripVertical
+          aria-hidden
+          className="absolute left-[calc(var(--sb-inset,18px)-19px)] top-1/2 h-4 w-4 -translate-y-1/2 text-ghost opacity-0 transition-opacity group-hover/stack:opacity-100"
+        />
         <h3
           onDoubleClick={(e) => {
             e.stopPropagation()
@@ -176,6 +196,8 @@ export function StackColumn({ stack, index = 0 }: Props) {
           listRef.current = el
           setDropNode(el)
         }}
+        data-stack-list
+        data-over={isOver ? '' : undefined}
         className={`flex flex-col gap-1 rounded-xl border p-1.5 transition-colors compact:gap-0.5 compact:p-1 wallpaper:p-0 ${
           isOver ? 'border-accent-line bg-accent-soft/60' : 'border-transparent bg-well wallpaper:bg-transparent'
         }`}

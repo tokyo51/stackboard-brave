@@ -384,11 +384,79 @@ html body {
 [data-space-tx="zoom"]::view-transition-new(board) {
   animation: sb-in-zoom calc(360ms * var(--sb-tempo)) var(--sb-ease-out) both;
 }
+/* Swipe: a page swipe. Old and new travel left edge to edge on the same curve, the old one
+   dimming a little as it goes. The pair is clipped to the board, so nothing crosses the sidebar. */
+@keyframes sb-out-swipe {
+  to {
+    opacity: 0.5;
+    transform: translateX(-100%);
+  }
+}
+@keyframes sb-in-swipe {
+  from {
+    transform: translateX(100%);
+  }
+}
+[data-space-tx="swipe"]::view-transition-image-pair(board),
+[data-space-tx="blur"]::view-transition-image-pair(board) {
+  overflow: clip;
+}
+[data-space-tx="swipe"]::view-transition-old(board) {
+  animation: sb-out-swipe calc(320ms * var(--sb-tempo)) var(--sb-ease-out) both;
+}
+[data-space-tx="swipe"]::view-transition-new(board) {
+  animation: sb-in-swipe calc(320ms * var(--sb-tempo)) var(--sb-ease-out) both;
+}
+/* Blur: a crossfade through a soft focus pull, the old view easing forward as it dissolves.
+   Clipped like swipe, so the blur never smudges over the sidebar. */
+@keyframes sb-out-blur {
+  to {
+    opacity: 0;
+    transform: scale(1.015);
+    filter: blur(10px);
+  }
+}
+@keyframes sb-in-blur {
+  from {
+    opacity: 0;
+    transform: scale(0.985);
+    filter: blur(10px);
+  }
+}
+[data-space-tx="blur"]::view-transition-old(board) {
+  animation: sb-out-blur calc(240ms * var(--sb-tempo)) var(--sb-ease-out) both;
+}
+[data-space-tx="blur"]::view-transition-new(board) {
+  animation: sb-in-blur calc(300ms * var(--sb-tempo)) var(--sb-ease-out) both;
+}
 
 /* ---------- Spring on drop ---------- */
 [data-spring="on"] [data-lifted] {
   transition-timing-function: var(--sb-spring);
   transition-duration: calc(420ms * var(--sb-tempo));
+}
+
+/* ---------- Pattern layer (components/Backdrop.tsx) ----------
+   The tile is a mask (set inline from lib/backgrounds.ts) over a faint wash of the text colour,
+   so the pattern takes the palette. Same z-index as .ambient but earlier in the DOM: body
+   background, then pattern, then ambient, then the board. */
+.bg-pattern {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-color: color-mix(in srgb, var(--sb-fg) calc(var(--sb-pattern-alpha, 0.09) * 100%), transparent);
+  -webkit-mask-repeat: repeat;
+  mask-repeat: repeat;
+  animation: sb-pattern-in 400ms var(--sb-ease-out) backwards;
+}
+:root[data-pattern="none"] .bg-pattern {
+  display: none;
+}
+@keyframes sb-pattern-in {
+  from {
+    opacity: 0;
+  }
 }
 
 /* ---------- Ambient backgrounds (components/Ambient.tsx) ---------- */
@@ -519,6 +587,312 @@ html body {
   }
 }
 
+/* Stars: a fixed scatter twinkling at their own rates, and a shooting star every nine seconds. */
+.ambient-star {
+  --tint: var(--c);
+  position: absolute;
+  left: var(--x);
+  top: var(--y);
+  width: var(--s);
+  height: var(--s);
+  border-radius: 50%;
+  /* A soft point, not a hard pixel. */
+  background: radial-gradient(circle closest-side, var(--tint) 0 38%, color-mix(in srgb, var(--tint) 35%, transparent) 64%, transparent);
+  opacity: 0.55;
+  animation: sb-twinkle var(--d) ease-in-out var(--delay) infinite alternate;
+}
+/* The bright few get a halo and faint diffraction spikes. */
+.ambient-star[data-bright] {
+  box-shadow: 0 0 10px 1px color-mix(in srgb, var(--sb-accent-mark) 28%, transparent);
+}
+.ambient-star[data-bright]::before,
+.ambient-star[data-bright]::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 16px;
+  height: 1px;
+  translate: -50% -50%;
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--tint) 55%, transparent), transparent);
+}
+.ambient-star[data-bright]::after {
+  rotate: 90deg;
+}
+@keyframes sb-twinkle {
+  from {
+    opacity: 0.12;
+    transform: scale(0.6);
+  }
+  to {
+    opacity: 0.85;
+    transform: scale(1);
+  }
+}
+.ambient-shooting {
+  position: absolute;
+  top: 9vh;
+  left: 80vw;
+  width: 160px;
+  height: 1.5px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--sb-fg), color-mix(in srgb, var(--sb-accent-mark) 55%, transparent) 22%, transparent);
+  filter: drop-shadow(0 0 3px color-mix(in srgb, var(--sb-accent-mark) 70%, transparent));
+  opacity: 0;
+  animation: sb-shooting 18s cubic-bezier(0.3, 0.2, 0.25, 1) 2.5s infinite;
+}
+/* Two streaks per cycle from different starts. Between them it is invisible while it moves back. */
+@keyframes sb-shooting {
+  0% {
+    opacity: 0;
+    translate: 0 0;
+    transform: rotate(-32deg) translateX(0);
+  }
+  1% {
+    opacity: 1;
+  }
+  6% {
+    opacity: 0;
+    translate: 0 0;
+    transform: rotate(-32deg) translateX(-40vw);
+  }
+  50% {
+    opacity: 0;
+    translate: -34vw 18vh;
+    transform: rotate(-32deg) translateX(0);
+  }
+  51% {
+    opacity: 1;
+  }
+  56% {
+    opacity: 0;
+    translate: -34vw 18vh;
+    transform: rotate(-32deg) translateX(-40vw);
+  }
+  100% {
+    opacity: 0;
+    translate: 0 0;
+    transform: rotate(-32deg) translateX(0);
+  }
+}
+[data-scheme="light"] .ambient-star {
+  --tint: color-mix(in srgb, var(--c) 20%, var(--sb-accent));
+}
+[data-scheme="light"] .ambient-shooting {
+  background: linear-gradient(90deg, var(--sb-accent), color-mix(in srgb, var(--sb-accent-mark) 45%, transparent) 22%, transparent);
+}
+[data-scheme="light"] [data-ambient-layer="stars"] {
+  opacity: 0.7;
+}
+
+/* Waves: three tileable swells at the foot of the screen, each sliding at its own pace. */
+.ambient-wave {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 200%;
+  height: var(--h);
+  fill: var(--c);
+  opacity: var(--o);
+  -webkit-mask-image: linear-gradient(180deg, #000 20%, rgb(0 0 0 / 0.2));
+  mask-image: linear-gradient(180deg, #000 20%, rgb(0 0 0 / 0.2));
+  animation:
+    sb-wave var(--d) linear infinite,
+    sb-wave-bob var(--b) ease-in-out infinite alternate;
+  will-change: transform;
+}
+.ambient-wave:nth-child(1) {
+  --h: 34vh;
+  --c: var(--sb-brand-to);
+  --o: 0.1;
+  --d: 52s;
+  --b: 9s;
+}
+.ambient-wave:nth-child(2) {
+  --h: 26vh;
+  --c: var(--sb-accent);
+  --o: 0.12;
+  --d: 36s;
+  --b: 7s;
+  animation-direction: reverse, alternate;
+}
+.ambient-wave:nth-child(3) {
+  --h: 18vh;
+  --c: var(--sb-accent-mark);
+  --o: 0.14;
+  --d: 24s;
+  --b: 6s;
+  animation-delay: 0s, -3s;
+}
+@keyframes sb-wave {
+  to {
+    transform: translateX(-50%);
+  }
+}
+@keyframes sb-wave-bob {
+  to {
+    translate: 0 1.5vh;
+  }
+}
+[data-scheme="light"] [data-ambient-layer="waves"] {
+  opacity: 0.75;
+}
+
+/* Fireflies: x and y swing on different periods, so each traces a slow loop, and each glows
+   up and fades on its own clock. */
+.ambient-firefly {
+  position: absolute;
+  left: var(--x);
+  top: var(--y);
+  width: var(--s);
+  height: var(--s);
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--sb-accent-mark) 55%, #fff);
+  box-shadow:
+    0 0 6px 1px color-mix(in srgb, var(--sb-accent-mark) 85%, transparent),
+    0 0 22px 6px color-mix(in srgb, var(--sb-accent-mark) 30%, transparent);
+  opacity: 0.6;
+  animation:
+    sb-firefly-x var(--tx) ease-in-out var(--dx) infinite alternate,
+    sb-firefly-y var(--ty) ease-in-out var(--dy) infinite alternate,
+    sb-firefly-glow var(--tg) ease-in-out var(--dg) infinite;
+}
+@keyframes sb-firefly-x {
+  from {
+    translate: calc(var(--ax) * -1) 0;
+  }
+  to {
+    translate: var(--ax) 0;
+  }
+}
+@keyframes sb-firefly-y {
+  from {
+    transform: translateY(calc(var(--ay) * -1));
+  }
+  to {
+    transform: translateY(var(--ay));
+  }
+}
+@keyframes sb-firefly-glow {
+  0%,
+  30% {
+    opacity: 0.06;
+  }
+  52% {
+    opacity: 1;
+  }
+  70% {
+    opacity: 0.7;
+  }
+  100% {
+    opacity: 0.06;
+  }
+}
+[data-scheme="light"] .ambient-firefly {
+  background: var(--sb-accent);
+  box-shadow:
+    0 0 5px 1px color-mix(in srgb, var(--sb-accent) 55%, transparent),
+    0 0 18px 5px color-mix(in srgb, var(--sb-accent-mark) 22%, transparent);
+}
+
+/* Lava: big soft blobs rising and sinking. Their uneven corners stay put; a slow turn and an
+   uneven scale make them read as morphing, all on the compositor (no border-radius repaints). */
+.ambient-lava {
+  position: absolute;
+  left: var(--x);
+  top: var(--y);
+  width: var(--w);
+  height: var(--w);
+  background: var(--c);
+  border-radius: var(--r);
+  filter: blur(34px);
+  opacity: 0.3;
+  will-change: transform;
+  animation:
+    sb-lava-rise var(--d) ease-in-out var(--delay) infinite alternate,
+    sb-lava-morph var(--m) ease-in-out var(--delay) infinite alternate;
+}
+.ambient-lava:nth-child(1) {
+  --x: 4vw;
+  --y: 48vh;
+  --w: 34vmax;
+  --c: var(--sb-accent);
+  --r: 58% 42% 47% 53% / 46% 57% 43% 54%;
+  --d: 38s;
+  --m: 23s;
+  --delay: 0s;
+  --dx: 6vw;
+}
+.ambient-lava:nth-child(2) {
+  --x: 60vw;
+  --y: 56vh;
+  --w: 27vmax;
+  --c: var(--sb-brand-to);
+  --r: 44% 56% 62% 38% / 55% 41% 59% 45%;
+  --d: 44s;
+  --m: 29s;
+  --delay: -15s;
+  --dx: -8vw;
+}
+.ambient-lava:nth-child(3) {
+  --x: 32vw;
+  --y: 16vh;
+  --w: 22vmax;
+  --c: var(--sb-brand-to);
+  --r: 63% 37% 41% 59% / 42% 61% 39% 58%;
+  --d: 51s;
+  --m: 19s;
+  --delay: -31s;
+  --dx: 9vw;
+}
+.ambient-lava:nth-child(4) {
+  --x: 74vw;
+  --y: 2vh;
+  --w: 26vmax;
+  --c: var(--sb-accent);
+  --r: 49% 51% 36% 64% / 61% 46% 54% 39%;
+  --d: 47s;
+  --m: 26s;
+  --delay: -8s;
+  --dx: -5vw;
+}
+.ambient-lava:nth-child(5) {
+  --x: 14vw;
+  --y: -6vh;
+  --w: 18vmax;
+  --c: var(--sb-accent-mark);
+  --r: 55% 45% 60% 40% / 40% 58% 42% 60%;
+  --d: 41s;
+  --m: 21s;
+  --delay: -22s;
+  --dx: 7vw;
+}
+@keyframes sb-lava-rise {
+  from {
+    translate: 0 16vh;
+  }
+  to {
+    translate: var(--dx) -18vh;
+  }
+}
+@keyframes sb-lava-morph {
+  0% {
+    transform: rotate(0deg) scale(1, 1);
+  }
+  35% {
+    transform: rotate(70deg) scale(1.14, 0.88);
+  }
+  70% {
+    transform: rotate(150deg) scale(0.9, 1.12);
+  }
+  100% {
+    transform: rotate(230deg) scale(1.06, 0.95);
+  }
+}
+[data-scheme="light"] .ambient-lava {
+  opacity: 0.2;
+}
+
 /* CRT lines sit over the board, faint enough to keep text contrast. */
 .ambient-scanlines {
   position: fixed;
@@ -546,10 +920,11 @@ html body {
 
 /* ---------- Motion off, or reduced by the OS: everything rests in its final state ---------- */
 :root[data-motion="off"] :is(.ambient-blob, .ambient-drift, .ambient-bubble, .ambient-plane, .ambient-scanlines),
+:root[data-motion="off"] :is(.ambient-star, .ambient-wave, .ambient-firefly, .ambient-lava, .bg-pattern),
 :root[data-motion="off"] [data-surface="header"] h1::after {
   animation: none;
 }
-:root[data-motion="off"] .ambient-bubble {
+:root[data-motion="off"] :is(.ambient-bubble, .ambient-shooting) {
   display: none;
 }
 :root[data-motion="off"] [data-surface="card"] {
@@ -557,11 +932,12 @@ html body {
 }
 @media (prefers-reduced-motion: reduce) {
   :is(.ambient-blob, .ambient-drift, .ambient-bubble, .ambient-plane, .ambient-scanlines),
+  :is(.ambient-star, .ambient-wave, .ambient-firefly, .ambient-lava, .bg-pattern),
   [data-surface="header"] h1::after,
   :is([data-surface="stack"], [data-surface="widget"]) {
     animation: none !important;
   }
-  .ambient-bubble {
+  :is(.ambient-bubble, .ambient-shooting) {
     display: none;
   }
   [data-surface="card"] {

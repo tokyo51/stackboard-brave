@@ -130,8 +130,11 @@ export const useStackableStore = create<StackableState>((set, get) => ({
     // Fork: the board animates between spaces with a View Transition (Settings > Motion).
     const doc = typeof document !== 'undefined' ? (document as Document & { startViewTransition?: (cb: () => void) => unknown }) : null
     const tx = doc?.documentElement.getAttribute('data-space-tx')
-    if (!doc?.startViewTransition || !tx || tx === 'none' || matchMedia('(prefers-reduced-motion: reduce)').matches) return go()
-    doc.startViewTransition(() => flushSync(go))
+    if (!doc?.startViewTransition || !tx || tx === 'none' || doc.hidden || matchMedia('(prefers-reduced-motion: reduce)').matches) return go()
+    // A transition the browser skips (tab hidden mid-way) rejects these promises; the switch still happens.
+    const t = doc.startViewTransition(() => flushSync(go)) as { ready?: Promise<unknown>; finished?: Promise<unknown> } | undefined
+    t?.ready?.catch(() => {})
+    t?.finished?.catch(() => {})
   },
   setSearch: (q) => set({ search: q }),
   openModal: (m) => set({ modal: m }),

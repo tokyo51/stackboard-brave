@@ -137,6 +137,13 @@ export default function App() {
   useEffect(() => {
     if (loaded) performance.mark('sb:board')
   }, [loaded])
+  // Entrance animations are for changes (a space switch, a new stack), not for every new tab:
+  // stacks and widgets mounted before this attribute exists stay still (polish.css, useEntrance).
+  useEffect(() => {
+    if (!loaded) return
+    const t = setTimeout(() => document.documentElement.setAttribute('data-booted', ''), 700)
+    return () => clearTimeout(t)
+  }, [loaded])
   useEffect(() => {
     if (!loaded || !IS_EXTENSION) return
     void takeOpenSpaceNote().then((note) => {
@@ -260,7 +267,7 @@ export default function App() {
         <Backdrop />
         <Ambient />
         <Sidebar />
-        <main className="flex-1 overflow-hidden">
+        <main className="relative flex-1 overflow-hidden">
           {loading && !tree && (
             <div className="flex h-full items-center justify-center text-sm text-muted">
               Loading…
@@ -274,11 +281,11 @@ export default function App() {
           {welcoming && <Welcome />}
           {tree && searching && <SearchResults query={search} />}
           {activeSpace && !searching && !welcoming && <SpaceView space={activeSpace} />}
+          <KeepItHint />
         </main>
         <ModalHost />
         <UndoToast />
         <CommandPalette />
-        <KeepItHint />
         <RatingPrompt />
         {certificate && <Certificate bankruptcy={certificate} onClose={() => setCertificate(null)} />}
         <DragOverlay dropAnimation={spring ? { ...dropAnimation, duration: 420, easing: SPRING } : dropAnimation}>

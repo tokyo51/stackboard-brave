@@ -1,0 +1,71 @@
+/* Fork: micro-interactions. Small, quick and ease-out, scaled by --sb-tempo (styles.css).
+ *
+ * They live in the components layer, so any Tailwind utility a component carries (its own
+ * transition-colors, animate-pulse, ...) still wins, and the unlayered rules in styles.css and
+ * index.css (.pop-in, .toast, card hover) keep theirs. Everything sits behind a no-preference
+ * query and a motion-on check: with reduced motion or Motion off, none of it exists and every
+ * element simply shows its final state.
+ *
+ * Never a transform on [data-surface="card"] or [data-surface="stack"] here: dnd-kit moves
+ * those with an inline transform while dragging.
+ */
+@layer components {
+  @media (prefers-reduced-motion: no-preference) {
+    /* Buttons give a little under the pointer. Drag handles (dnd-kit marks them with
+       aria-roledescription) are left alone so a grab never shrinks. */
+    :root:not([data-motion="off"]) button:not(:disabled, [aria-roledescription]) {
+      transition: transform calc(180ms * var(--sb-tempo)) var(--sb-ease-out);
+    }
+    :root:not([data-motion="off"]) button:not(:disabled, [aria-roledescription]):active {
+      transform: scale(0.97);
+      transition-duration: calc(60ms * var(--sb-tempo));
+    }
+
+    /* Sidebar rows: hover, selection and the row tools ease in instead of snapping. */
+    :root:not([data-motion="off"]) [data-surface="sidebar"] :is(button, a) {
+      transition-property: transform, background-color, color, opacity;
+      transition-duration: calc(160ms * var(--sb-tempo));
+      transition-timing-function: var(--sb-ease-out);
+    }
+
+    /* Dialogs settle in from just below full size while their scrim fades up. */
+    :root:not([data-motion="off"]) [role="dialog"][data-surface="modal"] {
+      animation: sb-modal-in calc(180ms * var(--sb-tempo)) var(--sb-ease-out) backwards;
+    }
+    :root:not([data-motion="off"]) :has(> [role="dialog"][data-surface="modal"]) {
+      animation: sb-scrim-in calc(160ms * var(--sb-tempo)) ease-out backwards;
+    }
+
+    /* Focus rings fade in and draw in toward the element, as on macOS. Outline rings and
+       Tailwind's box-shadow rings each get their own keyframes. */
+    :root:not([data-motion="off"]) :focus-visible {
+      animation: sb-focus-in calc(200ms * var(--sb-tempo)) var(--sb-ease-out);
+    }
+    :root:not([data-motion="off"]) [class*="focus-visible:ring"]:focus-visible {
+      animation-name: sb-ring-in;
+    }
+  }
+}
+
+@keyframes sb-modal-in {
+  from {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+}
+@keyframes sb-scrim-in {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes sb-focus-in {
+  from {
+    outline-color: transparent;
+    outline-offset: 5px;
+  }
+}
+@keyframes sb-ring-in {
+  from {
+    box-shadow: none;
+  }
+}

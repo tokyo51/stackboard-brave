@@ -1,6 +1,6 @@
 // End-to-end check of the built Stackboard extension in Chrome for Testing.
 // Loads dist/ unpacked into a throwaway profile, seeds bookmarks through chrome.bookmarks,
-// and drives the new-tab page with real mouse and keyboard input. 79 checks, ~2 min.
+// and drives the new-tab page with real mouse and keyboard input. 103 checks, ~3 min.
 //
 // Setup (branded Chrome ignores --load-extension, so use Chrome for Testing, or Brave via the CDP pipe):
 //   npm i puppeteer-core@24 @puppeteer/browsers@2
@@ -471,8 +471,19 @@ try {
       el.click()
       return true
     }, sel, text)
-  await clickText(ntp5, 'aside button', 'Settings')
-  await sleep(300)
+  // Settings is a window with tabs (Look, Style, Motion, Widgets, Data) and renders only the open
+  // one, so a check opens the tab its control lives on first.
+  const settingsTab = async (page, id) => {
+    await page.evaluate((id) => document.querySelector(`[data-settings-tab="${id}"]`)?.click(), id)
+    await page.waitForSelector(`#settings-panel-${id}`, { timeout: 5000 })
+    await sleep(250)
+  }
+  const openSettings = async (page, id) => {
+    await clickText(page, 'aside button', 'Settings')
+    await page.waitForSelector('[data-settings-tab]', { timeout: 5000 })
+    if (id) await settingsTab(page, id)
+  }
+  await openSettings(ntp5, 'data')
   await clickText(ntp5, 'button', 'Starter packs')
   await sleep(300)
   const addDev = await ntp5.evaluate(() => {
@@ -531,8 +542,7 @@ try {
   const ntp9 = await openNtp()
   await sleep(800)
   check('a plain new tab waits at 16 tabs', await ntp9.evaluate(() => !document.querySelector('[data-rating-prompt]')))
-  await clickText(ntp9, 'aside button', 'Settings')
-  await sleep(300)
+  await openSettings(ntp9, 'data')
   await clickText(ntp9, 'button', 'Starter packs')
   await sleep(300)
   const addStudy = await ntp9.evaluate(() => {
@@ -648,10 +658,15 @@ try {
   await ntpA.bringToFront()
   await ntpA.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: 'light' }])
   await sleep(300)
-  const cream = await look(ntpA)
-  check('default look is the cream Stackboard palette', cream.palette === 'stackboard' && cream.canvas === rgb('#fbf3e8') && cream.card === rgb('#ffffff'), JSON.stringify(cream))
+  const first = await ntpA.evaluate(() => ({ palette: document.documentElement.dataset.palette, style: document.documentElement.dataset.style }))
+  if (VIA_PIPE) {
+    // In Brave a fresh install starts from the Brave preset, so the board feels built in.
+    check('a fresh install in Brave starts from the Brave look', first.palette === 'brave' && first.style === 'brave', JSON.stringify(first))
+  } else {
+    check('a fresh install starts on the Stackboard palette', first.palette === 'stackboard' && first.style === 'flat', JSON.stringify(first))
+  }
 
-  await clickText(ntpA, 'aside button', 'Settings')
+  await openSettings(ntpA)
   await ntpA.waitForSelector('[data-appearance]', { timeout: 5000 })
   const pick = async (sel) => {
     const found = await ntpA.evaluate((s) => {
@@ -662,6 +677,54 @@ try {
     if (!found) console.log('missing control:', sel)
     await sleep(250)
   }
+
+  // ---------- Fork: Settings tabs ----------
+  const tabs = () =>
+    ntpA.evaluate(() => ({
+      panels: document.querySelectorAll('[role="tabpanel"]').length,
+      panel: document.querySelector('[role="tabpanel"]')?.id ?? null,
+      labelled: document.querySelector('[role="tabpanel"]')?.getAttribute('aria-labelledby') ?? null,
+      selected: [...document.querySelectorAll('[role="tab"][aria-selected="true"]')].map((t) => t.dataset.settingsTab),
+      // Layout height: the dialog's entrance animation scales it for a moment.
+      height: document.querySelector('[role="dialog"]').offsetHeight,
+      density: !!document.querySelector('[aria-label="Density"]'),
+      themes: !!document.querySelector('[data-palette-option]'),
+    }))
+  const onLook = await tabs()
+  await settingsTab(ntpA, 'style')
+  const onStyle = await tabs()
+  check(
+    'settings: tabs switch, one panel in the DOM at a time',
+    onLook.panels === 1 && onStyle.panels === 1 && onLook.selected.join() === 'look' && onStyle.selected.join() === 'style' &&
+      onStyle.panel === 'settings-panel-style' && onStyle.labelled === 'settings-tab-style' && onStyle.density && !onStyle.themes && onLook.themes && !onLook.density,
+    JSON.stringify({ onLook, onStyle }),
+  )
+  check('settings: the window keeps one height across tabs', onLook.height === onStyle.height && onLook.height > 300, `${onLook.height} vs ${onStyle.height}`)
+  await ntpA.focus('[data-settings-tab="style"]')
+  await ntpA.keyboard.press('ArrowRight')
+  await sleep(250)
+  const arrowed = await tabs()
+  await ntpA.keyboard.press('ArrowLeft')
+  await ntpA.keyboard.press('ArrowLeft')
+  await sleep(250)
+  const arrowedBack = await tabs()
+  const focused = await ntpA.evaluate(() => document.activeElement?.dataset.settingsTab ?? null)
+  check('settings: arrow keys move between tabs', arrowed.selected.join() === 'motion' && arrowedBack.selected.join() === 'look' && focused === 'look', `${arrowed.selected} ${arrowedBack.selected} focus=${focused}`)
+  await settingsTab(ntpA, 'data')
+  await ntpA.keyboard.press('Escape')
+  await sleep(300)
+  await openSettings(ntpA)
+  const reopened = await tabs()
+  check('settings: reopening lands on the last tab', reopened.selected.join() === 'data', reopened.selected.join())
+  await settingsTab(ntpA, 'look')
+
+  // Back to the original look for the palette checks: default preset, Stackboard, solid background.
+  await pick('[data-preset="default"]')
+  await pick('[data-palette-option="stackboard"]')
+  await pick('[aria-label="Background"] [data-option="solid"]')
+  const cream = await look(ntpA)
+  check('the Stackboard palette is cream with white cards', cream.palette === 'stackboard' && cream.canvas === rgb('#fbf3e8') && cream.card === rgb('#ffffff'), JSON.stringify(cream))
+
   await pick('[data-palette-option="catppuccin"]')
   const latte = await look(ntpA)
   check('Catppuccin on a light system is Latte', latte.scheme === 'light' && latte.canvas === rgb('#e6e9ef') && latte.card === rgb('#eff1f5') && latte.heading === rgb('#4c4f69'), JSON.stringify(latte))
@@ -711,15 +774,56 @@ try {
 
   const cardHeight = () => ntpA.evaluate(() => document.querySelector('main a[href^="http"]').getBoundingClientRect().height)
   const roomy = await cardHeight()
+  await settingsTab(ntpA, 'style')
   await pick('[aria-label="Density"] [data-option="compact"]')
   const tight = await cardHeight()
   check('compact density makes cards shorter', tight < roomy - 4, `${roomy} -> ${tight}`)
   await pick('[aria-label="Density"] [data-option="comfortable"]')
+  await settingsTab(ntpA, 'look')
 
   await pick('[aria-label="Background"] [data-option="gradient"]')
   await pick('[data-gradient-option="2"]')
   const gradient = await ntpA.evaluate(() => ({ kind: document.documentElement.dataset.bg, n: document.documentElement.dataset.gradient, image: getComputedStyle(document.body).backgroundImage }))
   check('a gradient background paints the page', gradient.kind === 'gradient' && gradient.n === '2' && gradient.image.includes('radial-gradient'), `${gradient.kind} ${gradient.n} ${gradient.image.slice(0, 40)}`)
+  const swatches = await ntpA.evaluate(() => document.querySelectorAll('[data-gradient-option]').length)
+  await pick('[data-gradient-option="7"]')
+  const g7 = await ntpA.evaluate(() => document.documentElement.dataset.gradient)
+  check('the 7th of 9 gradient swatches applies gradient 7', swatches === 9 && g7 === '7', `${swatches} swatches, data-gradient=${g7}`)
+  await pick('[data-pattern-option="waves"]')
+  const waves = await ntpA.evaluate(() => ({ pattern: document.documentElement.dataset.pattern, slider: !!document.querySelector('[data-slider="strength"]') }))
+  check('choosing the Waves pattern sets data-pattern and shows its strength', waves.pattern === 'waves' && waves.slider, JSON.stringify(waves))
+
+  // Save as wallpaper: catch the PNG on its way to the download instead of saving a file.
+  await ntpA.evaluate(() => {
+    window.__wallpaper = { blobs: [], name: null }
+    const make = URL.createObjectURL.bind(URL)
+    URL.createObjectURL = (b) => {
+      window.__wallpaper.blobs.push({ type: b.type, size: b.size })
+      return make(b)
+    }
+    document.addEventListener(
+      'click',
+      (e) => {
+        const link = e.target instanceof Element ? e.target.closest('a[download]') : null
+        if (!link) return
+        e.preventDefault()
+        window.__wallpaper.name = link.download
+      },
+      true,
+    )
+  })
+  await pick('[data-wallpaper-png]')
+  let wallpaper = null
+  for (let i = 0; i < 50 && !wallpaper?.name; i++) {
+    wallpaper = await ntpA.evaluate(() => window.__wallpaper)
+    if (!wallpaper?.name) await sleep(200)
+  }
+  const png = wallpaper?.blobs.find((b) => b.type === 'image/png')
+  check(
+    'Save as wallpaper makes a PNG of the background',
+    !!png && png.size > 1000 && /^stackboard-stackboard-spotlight-waves\.png$/.test(wallpaper.name ?? ''),
+    JSON.stringify(wallpaper),
+  )
 
   // A picture, through the real file input.
   const picture = path.join(SHOTS, 'picture.png')
@@ -856,7 +960,7 @@ try {
   const pal = await w1.evaluate(() => [document.documentElement.getAttribute('data-palette'), !!document.querySelector('[data-command-palette]')])
   check('command palette: Cmd/Ctrl+K, type, Enter applies a theme', pal[0] === 'dracula' && pal[1] === false, JSON.stringify(pal))
 
-  await w1.evaluate(() => [...document.querySelectorAll('aside button')].find((b) => b.textContent.trim().startsWith('Settings')).click())
+  await openSettings(w1, 'look')
   await w1.waitForSelector('[data-preset="terminal"]', { timeout: 5000 })
   await w1.click('[data-preset="terminal"]')
   await sleep(300)
@@ -881,8 +985,7 @@ try {
   const diagPage = await browser.newPage()
   await diagPage.goto(NTP)
   await diagPage.waitForFunction(() => !!document.querySelector('main h1'), { timeout: 10000 })
-  await diagPage.evaluate(() => [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Settings').click())
-  await sleep(400)
+  await openSettings(diagPage, 'data')
   await diagPage.evaluate(() => [...document.querySelectorAll('[data-troubleshooting] button')][0].click())
   await diagPage.waitForFunction(() => !!document.querySelector('[data-troubleshooting] pre'), { timeout: 10000 })
   const report = JSON.parse(await diagPage.evaluate(() => document.querySelector('[data-troubleshooting] pre').textContent))
@@ -895,9 +998,8 @@ try {
   // A write the browser refuses (the Brave report): the button used to do nothing at all.
   await diagPage.evaluate(() => {
     chrome.bookmarks.create = () => Promise.reject(new Error('probe failure'))
-    ;[...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Settings').click()
   })
-  await sleep(400)
+  await openSettings(diagPage, 'data')
   await clickText(diagPage, 'button', 'Starter packs')
   await sleep(400)
   await clickText(diagPage, '[role="dialog"] li button', 'Add')

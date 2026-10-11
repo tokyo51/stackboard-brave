@@ -92,6 +92,20 @@ export const GENERATED_PALETTES = [
     "light": "Windows Classic"
   },
   {
+    "id": "apple",
+    "name": "Apple",
+    "group": "Native",
+    "light": "Apple Light",
+    "dark": "Apple Dark"
+  },
+  {
+    "id": "brave",
+    "name": "Brave",
+    "group": "Native",
+    "light": "Brave Light",
+    "dark": "Brave Dark"
+  },
+  {
     "id": "aero",
     "name": "Frutiger Aero",
     "group": "Y2K",

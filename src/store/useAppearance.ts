@@ -6,10 +6,15 @@ import {
   resolveScheme,
   settingsFromMirror,
   styleAttributes,
+  styleVars,
   type Appearance,
   type AppearancePatch,
   type Scheme,
 } from '../lib/appearance'
+import { IS_BRAVE } from '../lib/browser'
+import { PRESETS } from '../lib/presets'
+
+const BRAVE_LOOK = PRESETS.find((p) => p.id === 'brave')!.patch
 
 // Appearance (0.5.0). The settings live in chrome.storage.local["appearance"]; a copy in
 // localStorage lets public/theme-boot.js theme the first frame. The picture itself is in
@@ -56,6 +61,7 @@ function applyToDocument(a: Appearance, scheme: Scheme): void {
     next['data-bg'] = a.bg.kind
     next['data-gradient'] = String(a.bg.gradient)
   }
+  for (const [k, v] of Object.entries(styleVars(a))) if (root.style.getPropertyValue(k) !== v) root.style.setProperty(k, v)
   const changed = Object.entries(next).filter(([k, v]) => root.getAttribute(k) !== v)
   if (!changed.length) return
   root.setAttribute('data-theme-switching', '')
@@ -92,6 +98,13 @@ function save(a: Appearance, gentle: boolean): void {
   else write()
 }
 
+const hadMirror = (() => {
+  try {
+    return localStorage.getItem(MIRROR_KEY) !== null
+  } catch {
+    return false
+  }
+})()
 const initial = readMirror()
 
 export const useAppearance = create<AppearanceState>((set, get) => ({
@@ -140,6 +153,8 @@ export function initAppearance(): void {
     .get(STORAGE_KEY)
     .then((got) => {
       if (got[STORAGE_KEY]) adopt(parseAppearance(got[STORAGE_KEY]))
+      // Fork: nothing chosen yet, in Brave: start from the Brave look so the board feels built in.
+      else if (IS_BRAVE && !hadMirror) useAppearance.getState().update(BRAVE_LOOK)
     })
     .catch(() => {})
   chrome.storage.onChanged.addListener((changes, area) => {

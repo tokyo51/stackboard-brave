@@ -32,6 +32,10 @@
   // Backgrounds belong to the board only, never the toolbar popup.
   if (root.hasAttribute('data-board')) {
     root.setAttribute('data-bg', a.bg === 'gradient' || a.bg === 'image' ? a.bg : 'solid')
-    root.setAttribute('data-gradient', a.gradient === 2 || a.gradient === 3 ? String(a.gradient) : '1')
+    root.setAttribute('data-gradient', a.gradient >= 1 && a.gradient <= 9 ? String(a.gradient) : '1')
+    var vars = a.vars && typeof a.vars === 'object' ? a.vars : {}
+    for (var v in vars) {
+      if (/^--sb-[a-z-]+$/.test(v) && typeof vars[v] === 'string') root.style.setProperty(v, vars[v])
+    }
   }
 })()

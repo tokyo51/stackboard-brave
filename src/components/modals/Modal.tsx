@@ -105,7 +105,7 @@ export function TextInput(props: React.InputHTMLAttributes<HTMLInputElement>) {
   return (
     <input
       {...props}
-      className={`w-full rounded-md border border-line-strong bg-card px-2.5 py-1.5 text-sm text-fg placeholder:text-faint focus:border-focus focus:outline-none ${props.className ?? ''}`}
+      className={`w-full rounded-md border border-line-strong bg-card px-2.5 py-1.5 text-sm text-fg placeholder:text-muted focus:border-focus focus:outline-none ${props.className ?? ''}`}
     />
   )
 }

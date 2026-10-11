@@ -1,6 +1,21 @@
-import { useEffect, useState } from 'react'
-import { Modal, PrimaryButton, SecondaryButton } from './Modal'
-import { Check, ClipboardCopy, Download, FolderInput, Link2, Package, Star, Upload } from 'lucide-react'
+import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
+import {
+  Check,
+  ClipboardCopy,
+  Database,
+  Download,
+  FolderInput,
+  LayoutGrid,
+  Link2,
+  Package,
+  Palette,
+  Shapes,
+  Star,
+  Upload,
+  Wind,
+  X,
+  type LucideIcon,
+} from 'lucide-react'
 import { exportBackup, importBackup } from '../../lib/bookmarks'
 import { downloadJson, openInNewTab, pickJsonFile } from '../../lib/tabs'
 import { REVIEWS_URL, SHARE_URL } from '../../lib/onboarding'
@@ -10,15 +25,164 @@ import { useStackableStore } from '../../store/useStackableStore'
 import { AppearanceSettings } from '../AppearanceSettings'
 import { BOOKMARKS_PAGE, BROWSER_NAME } from '../../lib/browser'
 import { diagnostics } from '../../lib/diagnostics'
-import { MotionSection, PresetSection, StyleSection, WidgetSection } from '../CustomizeSettings'
+import { MotionSection, PresetSection, StyleSection, ThemeTransfer, WidgetSection } from '../CustomizeSettings'
+import { Actions, Button, Group, Row, Section } from '../settings/ui'
+
+// Fork: Settings is a window with real tabs. Only the open tab is rendered; the window keeps one
+// height so switching never makes it jump, and the open tab is remembered for the session.
+
+type TabId = 'look' | 'style' | 'motion' | 'widgets' | 'data'
+
+const TABS: ReadonlyArray<{ id: TabId; label: string; icon: LucideIcon }> = [
+  { id: 'look', label: 'Look', icon: Palette },
+  { id: 'style', label: 'Style', icon: Shapes },
+  { id: 'motion', label: 'Motion', icon: Wind },
+  { id: 'widgets', label: 'Widgets', icon: LayoutGrid },
+  { id: 'data', label: 'Data', icon: Database },
+]
+
+/** The tab Settings opens on: the last one used in this page. */
+let lastTab: TabId = 'look'
 
 export function SettingsModal() {
   const close = useStackableStore((s) => s.closeModal)
+  const [tab, setTab] = useState<TabId>(lastTab)
+  const tabRefs = useRef<Array<HTMLButtonElement | null>>([])
+  const index = TABS.findIndex((t) => t.id === tab)
+
+  useEffect(() => {
+    const onKey = (e: globalThis.KeyboardEvent) => {
+      if (e.key === 'Escape') close()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [close])
+
+  // Keyboard users start on the tabs; a mouse user sees no ring (focus-visible).
+  useEffect(() => {
+    tabRefs.current[index]?.focus({ preventScroll: true })
+  }, [])
+
+  const choose = (id: TabId) => {
+    lastTab = id
+    setTab(id)
+  }
+
+  const onTabKey = (e: KeyboardEvent<HTMLDivElement>) => {
+    const last = TABS.length - 1
+    const next =
+      e.key === 'ArrowRight' ? (index === last ? 0 : index + 1)
+      : e.key === 'ArrowLeft' ? (index === 0 ? last : index - 1)
+      : e.key === 'Home' ? 0
+      : e.key === 'End' ? last
+      : null
+    if (next === null) return
+    e.preventDefault()
+    choose(TABS[next].id)
+    tabRefs.current[next]?.focus()
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-scrim/40 p-4"
+      onMouseDown={(e) => {
+        if (e.target === e.currentTarget) close()
+      }}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="Settings"
+        data-surface="modal"
+        data-settings
+        className="flex h-[min(760px,88vh)] w-full max-w-3xl flex-col overflow-hidden rounded-xl bg-raised text-fg shadow-2xl ring-1 ring-line"
+      >
+        <header className="grid shrink-0 grid-cols-[1fr_auto_1fr] items-center gap-4 border-b border-line px-4 py-3">
+          <h2 className="text-sm font-semibold text-strong">Settings</h2>
+
+          <div
+            role="tablist"
+            aria-label="Settings sections"
+            onKeyDown={onTabKey}
+            className="relative grid grid-cols-5 rounded-lg bg-sunken p-0.5 ring-1 ring-line"
+          >
+            {/* The active pill slides between tabs; equal columns keep it a pure transform. */}
+            <span
+              aria-hidden
+              className="absolute bottom-0.5 left-0.5 top-0.5 w-[calc((100%-0.25rem)/5)] rounded-md bg-card shadow-xs ring-1 ring-line transition-transform duration-220 ease-out motion-reduce:transition-none [:root[data-motion=off]_&]:transition-none"
+              style={{ transform: `translateX(${index * 100}%)` }}
+            />
+            {TABS.map((t, i) => {
+              const on = t.id === tab
+              const Icon = t.icon
+              return (
+                <button
+                  key={t.id}
+                  ref={(el) => {
+                    tabRefs.current[i] = el
+                  }}
+                  type="button"
+                  role="tab"
+                  id={`settings-tab-${t.id}`}
+                  aria-selected={on}
+                  aria-controls={`settings-panel-${t.id}`}
+                  tabIndex={on ? 0 : -1}
+                  data-settings-tab={t.id}
+                  onClick={() => choose(t.id)}
+                  className={`relative inline-flex items-center justify-center gap-1.5 rounded-md px-3 py-1 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus ${
+                    on ? 'text-strong' : 'text-muted hover:text-fg'
+                  }`}
+                >
+                  <Icon className="h-3.5 w-3.5" strokeWidth={on ? 2.25 : 2} />
+                  {t.label}
+                </button>
+              )
+            })}
+          </div>
+
+          <button
+            type="button"
+            onClick={close}
+            aria-label="Close"
+            className="justify-self-end rounded-lg p-1.5 text-muted transition-colors hover:bg-hover hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </header>
+
+        {/* Keyed by tab: a fresh panel starts at the top and plays its short entrance. */}
+        <div
+          key={tab}
+          role="tabpanel"
+          id={`settings-panel-${tab}`}
+          aria-labelledby={`settings-tab-${tab}`}
+          className="no-scrollbar min-h-0 flex-1 overflow-y-auto bg-sunken"
+        >
+          <div className="flex flex-col gap-9 px-6 pb-8 pt-6 transition-[opacity,translate] duration-180 ease-out starting:translate-y-1.5 starting:opacity-0 motion-reduce:transition-none [:root[data-motion=off]_&]:transition-none">
+            {tab === 'look' && (
+              <>
+                <PresetSection />
+                <AppearanceSettings />
+              </>
+            )}
+            {tab === 'style' && <StyleSection />}
+            {tab === 'motion' && <MotionSection />}
+            {tab === 'widgets' && <WidgetSection />}
+            {tab === 'data' && <DataTab />}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function DataTab() {
   const openModal = useStackableStore((s) => s.openModal)
   const refresh = useStackableStore((s) => s.refresh)
   const [status, setStatus] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [linkCopied, setLinkCopied] = useState(false)
+  const [shareNote, setShareNote] = useState<string | null>(null)
 
   const copyLink = async () => {
     try {
@@ -26,7 +190,7 @@ export function SettingsModal() {
       setLinkCopied(true)
       setTimeout(() => setLinkCopied(false), 1600)
     } catch {
-      setStatus(SHARE_URL)
+      setShareNote(SHARE_URL)
     }
   }
 
@@ -68,105 +232,70 @@ export function SettingsModal() {
   }
 
   return (
-    <Modal
-      title="Settings"
-      onClose={close}
-      width="xl"
-      scrim="light"
-      footer={<SecondaryButton onClick={close}>Close</SecondaryButton>}
-    >
-      <div className="flex flex-col gap-6">
-        <JumpBar />
-        <PresetSection />
-        <AppearanceSettings />
-        <StyleSection />
-        <MotionSection />
-        <WidgetSection />
-
-        <section id="settings-data" className="scroll-mt-14">
-          <h3 className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted">
-            Add to your board
-          </h3>
-          <div className="flex flex-wrap gap-2">
-            <SecondaryButton onClick={() => openModal({ kind: 'import' })}>
-              <span className="inline-flex items-center gap-1.5">
+    <>
+      <Section title="Your links" description={`Stackboard keeps everything in your ${BROWSER_NAME} bookmarks, under Other bookmarks › Stackboard.`}>
+        <Group>
+          <Row label="Add" hint="Bring in the bookmarks you already have, or start from a ready-made space.">
+            <Actions>
+              <Button onClick={() => openModal({ kind: 'import' })}>
                 <FolderInput className="h-3.5 w-3.5" />
                 Copy from {BROWSER_NAME} bookmarks
-              </span>
-            </SecondaryButton>
-            <SecondaryButton onClick={() => openModal({ kind: 'packs' })}>
-              <span className="inline-flex items-center gap-1.5">
+              </Button>
+              <Button onClick={() => openModal({ kind: 'packs' })}>
                 <Package className="h-3.5 w-3.5" />
                 Starter packs
-              </span>
-            </SecondaryButton>
-          </div>
-        </section>
-
-        <section>
-          <h3 className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted">
-            Backup
-          </h3>
-          <p className="mb-2 text-xs text-muted">
-            Stackboard stores everything in {BROWSER_NAME} bookmarks under <code>Other bookmarks → Stackboard</code>.
-            Use export/import for a portable JSON snapshot.
-          </p>
-          <div className="flex gap-2">
-            <PrimaryButton onClick={onExport} disabled={busy}>
-              <span className="inline-flex items-center gap-1.5">
+              </Button>
+            </Actions>
+          </Row>
+          <Row
+            label="Backup"
+            hint={<span aria-live="polite">{status ?? 'A JSON snapshot of every space, to keep or to move to another browser.'}</span>}
+          >
+            <Actions>
+              <Button onClick={() => void onExport()} disabled={busy}>
                 <Download className="h-3.5 w-3.5" />
                 Export JSON
-              </span>
-            </PrimaryButton>
-            <SecondaryButton onClick={onImport} disabled={busy}>
-              <span className="inline-flex items-center gap-1.5">
+              </Button>
+              <Button onClick={() => void onImport()} disabled={busy}>
                 <Upload className="h-3.5 w-3.5" />
                 Import JSON
-              </span>
-            </SecondaryButton>
-          </div>
-        </section>
+              </Button>
+            </Actions>
+          </Row>
+          <ThemeTransfer />
+        </Group>
+      </Section>
 
-        <KeysSection />
-
-        <TroubleshootingSection />
-
-        <section>
-          <h3 className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted">
-            Like Stackboard?
-          </h3>
-          <p className="mb-2 text-xs text-muted">
-            It's free, with no ads and no account. A rating or a share is how other people find it.
-          </p>
-          <div className="flex flex-wrap gap-2">
-            <SecondaryButton onClick={rate}>
-              <span className="inline-flex items-center gap-1.5">
+      <Section title="Help">
+        <Group>
+          <KeysRow />
+          <TroubleshootingRow />
+          <Row label="Share" hint={shareNote ?? 'Stackboard is free, with no ads and no account. A rating or a share is how other people find it.'}>
+            <Actions>
+              <Button onClick={rate}>
                 <Star className="h-3.5 w-3.5" />
                 Rate it
-              </span>
-            </SecondaryButton>
-            <SecondaryButton onClick={() => void copyLink()}>
-              <span className="inline-flex items-center gap-1.5">
+              </Button>
+              <Button onClick={() => void copyLink()}>
                 {linkCopied ? <Check className="h-3.5 w-3.5 text-accent-text" /> : <Link2 className="h-3.5 w-3.5" />}
                 {linkCopied ? 'Link copied' : 'Copy link to share'}
-              </span>
-            </SecondaryButton>
-          </div>
-        </section>
+              </Button>
+            </Actions>
+          </Row>
+        </Group>
+      </Section>
 
-        <section className="rounded-md border border-line bg-sunken px-3 py-2 text-xs text-muted">
-          <div className="font-medium text-fg">Tip</div>
-          You can also edit / inspect everything at <code>{BOOKMARKS_PAGE}</code>. Changes there appear in Stackboard on the next new tab.
-        </section>
-
-        {status && <div className="text-xs text-accent-text">{status}</div>}
-      </div>
-    </Modal>
+      <p className="text-xs leading-relaxed text-muted">
+        <span className="font-medium text-fg">Tip:</span> you can also edit and inspect everything at{' '}
+        <code className="rounded-md bg-raised px-1 py-0.5 text-[11px] text-fg ring-1 ring-line">{BOOKMARKS_PAGE}</code>. Changes
+        there appear in Stackboard on the next new tab.
+      </p>
+    </>
   )
 }
 
-/** The board's keyboard shortcuts, plus the stash shortcut as Chrome has it set. */
-function KeysSection() {
+/** The board's keyboard shortcuts, plus the stash shortcut as the browser has it set. */
+function KeysRow() {
   const [stash, setStash] = useState('')
   useEffect(() => {
     if (typeof chrome === 'undefined' || !chrome.commands) return
@@ -184,26 +313,25 @@ function KeysSection() {
   if (stash) rows.push([stash, 'Stash this window, from any tab'])
 
   return (
-    <section data-keys>
-      <h3 className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted">Keys</h3>
-      <dl className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-3 gap-y-1.5 text-xs">
+    <Row data-keys label="Keys">
+      <dl className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-3 gap-y-2 pt-0.5">
         {rows.map(([key, what]) => (
           <div key={key} className="contents">
             <dt>
-              <kbd className="inline-block min-w-6 rounded border border-line bg-card px-1.5 text-center font-sans text-[11px] leading-5 text-fg">
+              <kbd className="inline-block min-w-7 rounded-md bg-sunken px-1.5 text-center font-sans text-xs font-medium leading-6 text-fg ring-1 ring-line-strong">
                 {key}
               </kbd>
             </dt>
-            <dd className="text-muted">{what}</dd>
+            <dd className="text-xs text-fg">{what}</dd>
           </div>
         ))}
       </dl>
-    </section>
+    </Row>
   )
 }
 
 /** What Stackboard sees of the bookmark folders it relies on, to paste into a bug report. */
-function TroubleshootingSection() {
+function TroubleshootingRow() {
   const [report, setReport] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
 
@@ -220,47 +348,20 @@ function TroubleshootingSection() {
   }
 
   return (
-    <section data-troubleshooting>
-      <h3 className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted">Troubleshooting</h3>
-      <p className="mb-2 text-xs text-muted">
-        Something not saving? This lists the bookmark folders Stackboard uses and the last errors. No links are included.
-      </p>
-      <SecondaryButton onClick={() => void run()}>
-        <span className="inline-flex items-center gap-1.5">
+    <Row
+      data-troubleshooting
+      label="Diagnostics"
+      hint="Something not saving? This copies the bookmark folders Stackboard uses and the last errors. No links are included."
+    >
+      <Actions>
+        <Button onClick={() => void run()}>
           {copied ? <Check className="h-3.5 w-3.5 text-accent-text" /> : <ClipboardCopy className="h-3.5 w-3.5" />}
           {copied ? 'Copied' : 'Copy diagnostics'}
-        </span>
-      </SecondaryButton>
+        </Button>
+      </Actions>
       {report && (
-        <pre className="mt-2 max-h-56 overflow-auto rounded-md border border-line bg-sunken p-2 text-[11px] leading-snug text-fg">
-          {report}
-        </pre>
+        <pre className="mt-3 max-h-56 overflow-auto rounded-lg bg-sunken p-3 text-[11px] leading-snug text-fg ring-1 ring-line">{report}</pre>
       )}
-    </section>
-  )
-}
-
-/** Fork: Settings grew long, so a sticky row of jumps to each part. */
-function JumpBar() {
-  const parts: Array<[string, string]> = [
-    ['settings-look', 'Look'],
-    ['settings-style', 'Style'],
-    ['settings-motion', 'Motion'],
-    ['settings-widgets', 'Widgets'],
-    ['settings-data', 'Data'],
-  ]
-  return (
-    <nav aria-label="Settings sections" className="sticky -top-4 z-10 -mx-4 -mt-4 flex gap-1 border-b border-line bg-raised/95 px-4 py-2 backdrop-blur">
-      {parts.map(([id, label]) => (
-        <button
-          key={id}
-          type="button"
-          onClick={() => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
-          className="rounded-md px-2.5 py-1 text-xs font-medium text-muted hover:bg-hover hover:text-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
-        >
-          {label}
-        </button>
-      ))}
-    </nav>
+    </Row>
   )
 }

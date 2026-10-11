@@ -1,0 +1,218 @@
+/* Polish pass: fixes from the UI audit at 1024, 1280, 1440 and 1920 wide.
+ *
+ * Imported last in index.css, after styles.css and native.css, and unlayered like them, so a
+ * rule here wins over theirs at equal specificity (and over every Tailwind utility). Each rule is
+ * scoped to an attribute hook (data-surface, data-style, ...) and names the audit item it serves.
+ *
+ * Never a transform on [data-surface="card"] or [data-surface="stack"] here: dnd-kit moves those
+ * with inline transforms while dragging.
+ */
+
+/* ---------- One left edge (items 4 and 16) ----------
+   --sb-well-pad is the padding of a stack's link list. --sb-inset is where content starts inside
+   a stack: the list's 1px border and padding + the card's 1px border + the link's 10px padding. Stack titles, link
+   icons and widget icons all start on that line, in every style and density. Everything lives
+   on <html>, so the calc resolves once there and inherits. */
+:root {
+  --sb-well-pad: 0.375rem;
+}
+:root[data-density="compact"] {
+  --sb-well-pad: 0.25rem;
+}
+/* Over a wallpaper, and in the pane styles, the stack itself is the box (item 16 below). */
+:root:is([data-bg="image"], [data-style="glass"], [data-style="aero"], [data-style="floating"]) {
+  --sb-well-pad: 0px;
+}
+:root {
+  --sb-inset: calc(var(--sb-well-pad) + 12px);
+}
+
+/* The stack header starts its title on the inset; the grip hangs left of it (StackColumn).
+   Retro keeps its own full-bleed title bar. */
+:root:not([data-style="retro"]) [data-surface="stack"] > [data-stack-head] {
+  padding-inline: var(--sb-inset);
+}
+
+/* A widget has no side padding of its own beyond its pane padding (the same as a stack's in every
+   style); its children sit on the inset. Retro's title bar header keeps its own margins. */
+:root [data-surface="widget"] > * {
+  margin-inline: var(--sb-inset);
+}
+/* Apple pads widgets 16px but stacks 6px: match the stack so the columns line up. */
+:root[data-style="apple"] [data-surface="widget"] {
+  padding-inline: 6px;
+}
+
+/* Item 16: glass, aero and floating stacks nested three boxes (pane, list well, card). The pane
+   is the box now: the well goes transparent and loses its padding. A drop target still lights. */
+:root:is([data-style="glass"], [data-style="aero"], [data-style="floating"]) [data-surface="stack"] > [data-stack-list] {
+  padding: 0;
+}
+:root:is([data-style="glass"], [data-style="aero"], [data-style="floating"]) [data-surface="stack"] > [data-stack-list]:not([data-over]) {
+  background: transparent;
+  border-color: transparent;
+}
+
+/* ---------- Rows with icon tiles (premium pass) ----------
+   Links are 36px rows around a 28px tile. Spacious adds a little air, not the old 0.7rem. */
+[data-density="spacious"] [data-surface="card"] > a {
+  padding-top: 0.5rem;
+  padding-bottom: 0.5rem;
+}
+/* Apple's hairline between rows starts where the title starts (after the tile). */
+:root[data-style="apple"] [data-surface="card"] + [data-surface="card"]::before {
+  left: 49px;
+}
+:root[data-style="apple"][data-density="compact"] [data-surface="card"] + [data-surface="card"]::before {
+  left: 43px;
+}
+
+/* ---------- Widget grid (item 3) ----------
+   Spacious gets the same columns and gaps as the spacious stack grid (styles.css), so widget
+   columns sit under stack columns. */
+[data-density="spacious"] [data-widget-grid] {
+  grid-template-columns: repeat(auto-fill, minmax(288px, 1fr));
+  column-gap: 2rem;
+  row-gap: 2.25rem;
+}
+
+/* ---------- New stack placeholder (item 21) ----------
+   On the flat board a spacer the height of a stack header lines the button up with the link
+   lists. Every other style draws stacks as panes: there the pane tops line up instead. */
+:root:not([data-style="flat"]) [data-add-stack-spacer] {
+  display: none;
+}
+
+/* ---------- Focus (item 10) ----------
+   A visible ring on everything you can tab to. Elements that already draw a Tailwind focus ring
+   are skipped so nothing doubles up, and Brave keeps its own two-tone ring (native.css). */
+:root:not([data-style="brave"])
+  :where(button, a, [role="tab"], [role="radio"], summary):focus-visible:not([class*="focus-visible:ring"], [class*="focus:ring"]) {
+  outline: 2px solid var(--sb-focus);
+  outline-offset: 2px;
+}
+
+/* ---------- Header over the board (item 22) ----------
+   The header is sticky inside the board scroller (SpaceView). At rest it is transparent; once
+   the board scrolls under it, a canvas-tinted frosted layer and a hairline fade in, driven by
+   the scroll position itself (no JS, no timer). The layer is a pseudo-element so only its
+   opacity animates (Chromium does not animate backdrop-filter from a scroll timeline). Without
+   scroll timelines it stays hidden, as before. Not a mask on the scroller: a mask would cut the
+   glass panes off from the backdrop they blur. */
+[data-board-scroll] > [data-surface="header"]::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background-color: color-mix(in srgb, var(--sb-canvas) 80%, transparent);
+  backdrop-filter: blur(16px) saturate(1.4);
+  box-shadow: 0 1px 0 var(--sb-line);
+  opacity: 0;
+  pointer-events: none;
+}
+@supports (animation-timeline: scroll()) {
+  [data-board-scroll] > [data-surface="header"]::before {
+    animation: sb-header-tint linear both;
+    animation-timeline: scroll(nearest block);
+    animation-range: 0 24px;
+  }
+}
+@keyframes sb-header-tint {
+  to {
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-transparency: reduce) {
+  [data-board-scroll] > [data-surface="header"]::before {
+    background-color: var(--sb-canvas);
+    backdrop-filter: none;
+  }
+}
+
+/* ---------- Entrance only after first paint (item 29) ----------
+   A new tab opens on a still board. App.tsx sets data-booted ~700ms after the board renders, and
+   stacks and widgets that mount after that carry data-enter (useEntrance in StackColumn.tsx), so
+   a space switch or a new stack still rises in. The per-element flag matters: dropping
+   "animation: none" from elements already on screen would start their animation late. */
+:root:not([data-booted]) :is([data-surface="stack"], [data-surface="widget"]),
+:is([data-surface="stack"], [data-surface="widget"]):not([data-enter]) {
+  animation: none !important;
+}
+
+/* ---------- Frutiger Aero (item 15) ---------- */
+/* Dark: a 40% white border around every link was the loudest thing on the board. */
+:root[data-scheme="dark"][data-style="aero"] [data-surface="card"] {
+  border-color: color-mix(in srgb, #fff 12%, transparent);
+}
+/* The sidebar is tall, so the pane gloss (a seam at 47%) cut it in half. Gloss the top 96px. */
+:root[data-style="aero"] [data-surface="sidebar"] {
+  background:
+    linear-gradient(180deg, var(--sb-gloss) 0, var(--sb-gloss-soft) 88px, transparent 96px),
+    color-mix(in srgb, var(--sb-panel) 62%, transparent);
+}
+@media (prefers-reduced-transparency: reduce) {
+  :root[data-style="aero"] [data-surface="sidebar"] {
+    background: var(--sb-panel);
+  }
+}
+
+/* ---------- Synthwave (item 17) ----------
+   The sun and the grid sat behind the stacks and showed through the glass. Lower and fainter,
+   they frame the board instead of competing with it. */
+:root[data-ambient="grid"] .ambient-sun {
+  bottom: 12vh;
+  opacity: 0.35;
+}
+:root[data-ambient="grid"] .ambient-plane {
+  height: 30vh;
+  opacity: 0.35;
+}
+
+/* ---------- Retro OS and Game Boy (items 18 and 19) ---------- */
+/* Header buttons are raised 1995 buttons; pressed (Widgets shown) they sit in. */
+:root[data-style="retro"] [data-surface="header"] button {
+  border: 0;
+  border-radius: 0;
+  background-color: var(--sb-panel);
+  box-shadow: var(--sb-bevel-out);
+}
+:root[data-style="retro"] [data-surface="header"] button[aria-pressed="true"] {
+  box-shadow: var(--sb-bevel-in);
+}
+/* Text fields are sunken, as they were then. */
+:root[data-style="retro"] :is([data-search] form, aside input) {
+  border: 0;
+  border-radius: 0;
+  background-color: var(--sb-card);
+  box-shadow: var(--sb-bevel-in);
+}
+/* Their focus is the period's dotted rectangle (the bevel replaced the ring). */
+:root[data-style="retro"] :is([data-search] form:focus-within, aside input:focus) {
+  outline: 1px dotted var(--sb-focus);
+  outline-offset: 2px;
+}
+/* The open space is a pressed-in row. */
+:root[data-style="retro"] aside [aria-current="true"] {
+  border-radius: 0;
+  background-color: var(--sb-card);
+  box-shadow: var(--sb-bevel-in);
+}
+/* Title bars: solid accent under the title (white text was 4.01:1 on the old gradient's light end),
+   fading to the brand colour only at the far right. */
+:root[data-style="retro"] [data-surface="stack"] > :first-child,
+:root[data-style="retro"] [data-surface="widget"] > header {
+  background: linear-gradient(90deg, var(--sb-accent) 0 65%, var(--sb-brand-to));
+}
+
+/* ---------- Terminal (item 20) ----------
+   Icon tiles go monochrome: no tile fill, letters in the phosphor accent, and they follow the
+   inverted row on hover. */
+:root[data-style="terminal"] [data-tile] {
+  --sb-mono-bg: transparent;
+  --sb-mono-fg: var(--sb-accent-text);
+  background-color: transparent;
+}
+:root[data-style="terminal"] [data-surface="card"]:hover [data-tile] {
+  --sb-mono-fg: var(--sb-on-accent);
+  --tw-ring-color: color-mix(in srgb, var(--sb-on-accent) 45%, transparent);
+}

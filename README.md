@@ -83,6 +83,14 @@ The extra palettes are generated from each theme's official colours by `scripts/
 
 **Also fixed**: Chromium injects its own unlayered `body { font-family }` into extension pages, which beat Tailwind's layered rule, so no font setting (upstream's Inter included) ever applied. An unlayered rule fixes it.
 
+### 0.7.0
+
+- **Brave and Apple looks.** Brave: Leo design tokens and the brave-core new tab page (16px cards, Leo elevation, frosted widgets over the wallpaper). Fresh installs in Brave start in this look. Apple: HIG system colours, grouped-list stacks with hairlines, vibrancy sidebar, pill buttons, Apple's curves. Note for anyone building on this: in Chromium `-apple-system` does not resolve; `BlinkMacSystemFont` and `system-ui` do.
+- **Settings in real tabs** (Look, Style, Motion, Widgets, Data) in a fixed-size window, with preset previews that show each preset's style, not just its colours.
+- **Backgrounds:** 9 gradients (the palette's 3 plus Mesh, Sunset, Aurora, Spotlight, Twilight, Prism, mixed from its accents) and 16 patterns in the theme's colours with a strength slider. **Save as wallpaper** exports the current background as a PNG (or SVG) at screen resolution. `scripts/palettes.mjs` computes a per-palette glow strength so text stays AA on every gradient; the unit suite checks it.
+- **Motion:** stars with shooting stars, waves, fireflies and lava backgrounds; swipe and blur space transitions; button press, modal and focus micro-interactions. All still when motion is off or the OS asks for reduced motion.
+- **Layout polish** from a design audit: bookmarks on the first screen (clock and search on top, widget cards below the stacks), one left edge for titles and icons, AA text everywhere, a themed focus ring, quieter header actions, a sticky header.
+
 ## Brave changes
 
 What went wrong: every write (new space, starter pack, import) first runs `ensureRoot()`, which

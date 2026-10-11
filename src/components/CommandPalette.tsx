@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { Command, CornerDownLeft, Monitor, Moon, Palette, Plus, Search, Settings, Sparkles, Sun, LayoutDashboard, Globe } from 'lucide-react'
+import { CornerDownLeft, Monitor, Moon, Palette, Plus, Search, Settings, Sparkles, Sun, LayoutDashboard, Globe } from 'lucide-react'
 import { PALETTES, type Mode } from '../lib/appearance'
 import { PRESETS } from '../lib/presets'
 import { searchTree } from '../lib/search'
@@ -23,6 +23,16 @@ interface Item {
 }
 
 export const PALETTE_EVENT = 'stackboard:palette'
+
+const MOD = /Mac/i.test(navigator.platform) ? '⌘' : 'Ctrl'
+
+function Key({ children }: { children: ReactNode }) {
+  return (
+    <kbd className="inline-flex h-[18px] min-w-[18px] items-center justify-center rounded border border-line bg-sunken px-1 font-sans text-[10px] leading-none text-muted">
+      {children}
+    </kbd>
+  )
+}
 
 export function CommandPalette() {
   const [open, setOpen] = useState(false)
@@ -92,10 +102,10 @@ function PaletteDialog({ onClose }: { onClose: () => void }) {
     ]
     for (const [mode, label, icon] of modes) out.push({ id: `m:${mode}`, group: 'Actions', label, icon, run: () => update({ mode }) })
     for (const p of PRESETS) {
-      out.push({ id: `p:${p.id}`, group: 'Presets', label: `Preset: ${p.name}`, hint: p.blurb, icon: <Sparkles className="h-4 w-4" />, run: () => update(p.patch) })
+      out.push({ id: `p:${p.id}`, group: 'Presets', label: p.name, hint: p.blurb, icon: <Sparkles className="h-4 w-4" />, run: () => update(p.patch) })
     }
     for (const p of PALETTES) {
-      out.push({ id: `t:${p.id}`, group: 'Themes', label: `Theme: ${p.name}`, hint: [p.light, p.dark].filter(Boolean).join(' / '), icon: <Palette className="h-4 w-4" />, run: () => update({ palette: p.id }) })
+      out.push({ id: `t:${p.id}`, group: 'Themes', label: p.name, hint: [p.light, p.dark].filter(Boolean).join(' / '), icon: <Palette className="h-4 w-4" />, run: () => update({ palette: p.id }) })
     }
 
     const terms = query.toLowerCase().split(/\s+/).filter(Boolean)
@@ -163,7 +173,6 @@ function PaletteDialog({ onClose }: { onClose: () => void }) {
             aria-label="Command"
             className="min-w-0 flex-1 bg-transparent text-[15px] text-strong outline-none placeholder:text-muted"
           />
-          <kbd className="rounded border border-line bg-sunken px-1.5 text-[11px] leading-5 text-muted">Esc</kbd>
         </div>
         <ul ref={listRef} role="listbox" className="no-scrollbar flex-1 overflow-y-auto py-1.5">
           {items.map((it, i) => {
@@ -177,25 +186,38 @@ function PaletteDialog({ onClose }: { onClose: () => void }) {
                   aria-selected={i === active}
                   onMouseMove={() => setActive(i)}
                   onClick={(e) => run(i, e.metaKey || e.ctrlKey)}
-                  className={`mx-1.5 flex cursor-pointer items-center gap-3 rounded-lg px-2.5 py-1.5 text-sm ${i === active ? 'bg-selected text-strong' : 'text-fg'}`}
+                  className={`mx-1.5 flex cursor-pointer items-center gap-3 rounded-lg px-2.5 py-1.5 text-sm ${i === active ? 'bg-accent-soft text-strong' : 'text-fg'}`}
                 >
                   <span className="flex h-5 w-5 shrink-0 items-center justify-center text-muted">{it.icon}</span>
                   <span className="min-w-0 flex-1 truncate">{it.label}</span>
                   {it.hint && <span className="max-w-[45%] shrink-0 truncate text-xs text-muted">{it.hint}</span>}
-                  {i === active && <CornerDownLeft className="h-3.5 w-3.5 shrink-0 text-faint" aria-hidden />}
+                  {i === active && <CornerDownLeft className="h-3.5 w-3.5 shrink-0 text-muted" aria-hidden />}
                 </div>
               </li>
             )
           })}
           {items.length === 0 && <li className="px-4 py-6 text-center text-sm text-muted">Nothing matches.</li>}
         </ul>
-        <div className="flex items-center gap-3 border-t border-line px-4 py-2 text-[11px] text-muted">
-          <span className="inline-flex items-center gap-1">
-            <Command className="h-3 w-3" />K toggles
+        {/* One chip style for every key; the words stay muted. */}
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-line px-4 py-2 text-[11px] text-muted">
+          <span className="inline-flex items-center gap-1.5">
+            <Key>↑</Key>
+            <Key>↓</Key>
+            move
           </span>
-          <span>↑↓ to move</span>
-          <span>Enter opens</span>
-          <span>Ctrl/Cmd+Enter in a new tab</span>
+          <span className="inline-flex items-center gap-1.5">
+            <Key>Enter</Key>
+            open
+          </span>
+          <span className="inline-flex items-center gap-1.5">
+            <Key>{MOD}</Key>
+            <Key>Enter</Key>
+            new tab
+          </span>
+          <span className="ml-auto inline-flex items-center gap-1.5">
+            <Key>Esc</Key>
+            close
+          </span>
         </div>
       </div>
     </div>

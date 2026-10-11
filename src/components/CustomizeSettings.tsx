@@ -1,4 +1,4 @@
-import { useId, useState, type ReactNode } from 'react'
+import { useState } from 'react'
 import { Check, Download, Upload } from 'lucide-react'
 import { resolveScheme, type Ambient, type Density, type Entrance, type Font, type HoverEffect, type MotionLevel, type Radius, type SpaceTransition, type Style } from '../lib/appearance'
 import { PRESETS, type Preset } from '../lib/presets'
@@ -7,46 +7,18 @@ import { downloadJson, pickJsonFile } from '../lib/tabs'
 import { ENGINES, WIDGETS, isZone, type EngineId, type WidgetId } from '../lib/widgets'
 import { useAppearance } from '../store/useAppearance'
 import { useWidgets } from '../store/useWidgets'
-import { MiniBoard, RowLabel, Segmented } from './AppearanceSettings'
+import { MiniBoard } from './AppearanceSettings'
+import { geocodeCity } from './Widgets'
+import { Actions, Button, Group, Row, Section, Segmented, Toggle, fieldClass } from './settings/ui'
 
-// Fork: the Settings sections beyond palette and background. Every control applies at once to
-// the board behind the dialog, which is the preview.
+// Fork: the Settings tabs beyond themes and background. Every control applies at once to the
+// board behind the dialog, which is the preview.
 
-export function SectionTitle({ children, id }: { children: ReactNode; id?: string }) {
-  return (
-    <h3 id={id} className="mb-2.5 scroll-mt-14 text-xs font-semibold uppercase tracking-wide text-muted">
-      {children}
-    </h3>
-  )
-}
+// ---------- Presets (Look tab) ----------
 
-function Grid({ children }: { children: ReactNode }) {
-  return <div className="grid grid-cols-[96px_minmax(0,1fr)] items-start gap-x-3 gap-y-3.5">{children}</div>
-}
+type Look = ReturnType<typeof useAppearance.getState>['appearance']
 
-export function Toggle(props: { label: string; checked: boolean; onChange: (v: boolean) => void; hint?: string }) {
-  const id = useId()
-  return (
-    <label htmlFor={id} className="flex cursor-pointer items-start gap-2.5">
-      <span className="relative mt-0.5 inline-flex shrink-0">
-        <input id={id} type="checkbox" checked={props.checked} onChange={(e) => props.onChange(e.target.checked)} className="peer sr-only" />
-        <span className="h-4.5 w-8 rounded-full bg-line-strong transition-colors peer-checked:bg-accent peer-focus-visible:ring-2 peer-focus-visible:ring-focus" />
-        <span className="absolute left-0.5 top-0.5 h-3.5 w-3.5 rounded-full bg-card shadow-xs transition-transform peer-checked:translate-x-3.5" />
-      </span>
-      <span className="min-w-0 text-xs leading-snug">
-        <span className="block font-medium text-fg">{props.label}</span>
-        {props.hint && <span className="block text-muted">{props.hint}</span>}
-      </span>
-    </label>
-  )
-}
-
-const input =
-  'rounded-md border border-line-strong bg-card px-2 py-1 text-xs text-fg outline-none placeholder:text-muted focus:border-accent-line focus-visible:ring-2 focus-visible:ring-focus/30'
-
-// ---------- Presets ----------
-
-function matches(p: Preset, a: ReturnType<typeof useAppearance.getState>['appearance']): boolean {
+function matches(p: Preset, a: Look): boolean {
   const x = p.patch
   return (
     (!x.palette || x.palette === a.palette) &&
@@ -59,16 +31,23 @@ function matches(p: Preset, a: ReturnType<typeof useAppearance.getState>['appear
   )
 }
 
+/** "A, B and C" */
+function listNames(names: string[]): string {
+  return names.length < 2 ? names.join('') : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`
+}
+
 export function PresetSection() {
   const a = useAppearance((s) => s.appearance)
   const systemDark = useAppearance((s) => s.systemDark)
   const update = useAppearance((s) => s.update)
+  const themeless = PRESETS.filter((p) => !p.patch.palette).map((p) => p.name)
   return (
-    <section data-presets>
-      <SectionTitle id="settings-look">Presets</SectionTitle>
-      <div role="radiogroup" aria-label="Presets" className="grid grid-cols-3 gap-2">
+    <Section data-presets title="Presets" description="A whole look in one click. Change anything afterwards.">
+      <div role="radiogroup" aria-label="Presets" className="grid grid-cols-3 gap-3">
         {PRESETS.map((p) => {
-          const palette = p.patch.palette ?? a.palette
+          const x = p.patch
+          const palette = x.palette ?? a.palette
+          const kind = x.bg?.kind ?? a.bg.kind
           const on = matches(p, a)
           return (
             <button
@@ -78,144 +57,177 @@ export function PresetSection() {
               aria-checked={on}
               data-preset={p.id}
               onClick={() => update(p.patch)}
-              className={`group/preset flex min-w-0 items-center gap-2.5 rounded-lg p-1.5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus ${
-                on ? 'bg-accent-soft ring-1 ring-accent-line' : 'ring-1 ring-line hover:bg-hover'
+              className={`flex min-w-0 items-center gap-3 rounded-xl bg-raised p-2 pr-3 text-left transition-shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus ${
+                on ? 'ring-2 ring-accent' : 'ring-1 ring-line hover:ring-line-strong'
               }`}
             >
-              <span className="relative block aspect-[16/10] w-14 shrink-0 overflow-hidden rounded-md ring-1 ring-line">
-                <MiniBoard palette={palette} scheme={resolveScheme(a.mode, palette, systemDark)} />
+              <span className="relative block aspect-[16/10] w-20 shrink-0 overflow-hidden rounded-lg ring-1 ring-line">
+                <MiniBoard
+                  palette={palette}
+                  scheme={resolveScheme(a.mode, palette, systemDark)}
+                  look={{
+                    style: x.style,
+                    radius: x.radius,
+                    density: x.density,
+                    gradient: kind === 'gradient' ? (x.bg?.gradient ?? a.bg.gradient) : null,
+                  }}
+                />
               </span>
-              <span className="min-w-0 leading-tight">
-                <span className="flex items-center gap-1 text-xs font-semibold text-strong">
+              <span className="min-w-0 flex-1 leading-tight">
+                <span className="flex items-center gap-1.5 text-xs font-semibold text-strong">
                   <span className="truncate">{p.name}</span>
-                  {on && <Check className="h-3 w-3 shrink-0 text-accent-text" />}
+                  {on && <Check className="h-3.5 w-3.5 shrink-0 text-accent-text" strokeWidth={2.5} />}
                 </span>
-                <span className="mt-0.5 line-clamp-2 block text-[11px] text-muted">{p.blurb}</span>
+                <span className="mt-0.5 line-clamp-2 block text-[11px] leading-snug text-muted">{p.blurb}</span>
               </span>
             </button>
           )
         })}
       </div>
-      <ThemeTransfer />
-    </section>
+      {themeless.length > 0 && (
+        <p className="mt-3 text-xs leading-relaxed text-muted">
+          {listNames(themeless)} keep your current theme.
+        </p>
+      )}
+    </Section>
   )
 }
 
-function ThemeTransfer() {
+/** Data tab: the look as a file, to keep or to share. */
+export function ThemeTransfer() {
   const a = useAppearance((s) => s.appearance)
   const update = useAppearance((s) => s.update)
   const [note, setNote] = useState<string | null>(null)
   return (
-    <div className="mt-3 flex flex-wrap items-center gap-2">
-      <button
-        type="button"
-        onClick={() => {
-          downloadJson(`stackboard-theme-${a.palette}-${a.style}.json`, themeFile(a))
-          setNote('Theme saved as a file.')
-        }}
-        className="inline-flex items-center gap-1.5 rounded-md border border-line-strong bg-card px-2.5 py-1 text-xs font-medium text-fg hover:bg-hover"
-      >
-        <Download className="h-3.5 w-3.5" />
-        Export theme
-      </button>
-      <button
-        type="button"
-        onClick={async () => {
-          try {
-            const patch = readThemeFile(await pickJsonFile())
-            if (!patch) return setNote('That file is not a Stackboard theme.')
-            update(patch)
-            setNote('Theme applied.')
-          } catch (err) {
-            setNote(`Couldn't read it: ${err instanceof Error ? err.message : String(err)}`)
-          }
-        }}
-        className="inline-flex items-center gap-1.5 rounded-md border border-line-strong bg-card px-2.5 py-1 text-xs font-medium text-fg hover:bg-hover"
-      >
-        <Upload className="h-3.5 w-3.5" />
-        Import theme
-      </button>
-      {note && <span className="text-xs text-muted">{note}</span>}
-    </div>
+    <Row
+      data-theme-transfer
+      label="Theme"
+      hint={<span aria-live="polite">{note ?? 'Palette, style, motion and background in one small file. A picture stays on this device.'}</span>}
+    >
+      <Actions>
+        <Button
+          onClick={() => {
+            downloadJson(`stackboard-theme-${a.palette}-${a.style}.json`, themeFile(a))
+            setNote('Theme saved as a file.')
+          }}
+        >
+          <Download className="h-3.5 w-3.5" />
+          Export theme
+        </Button>
+        <Button
+          onClick={async () => {
+            try {
+              const patch = readThemeFile(await pickJsonFile())
+              if (!patch) return setNote('That file is not a Stackboard theme.')
+              update(patch)
+              setNote('Theme applied.')
+            } catch (err) {
+              setNote(`Couldn't read it: ${err instanceof Error ? err.message : String(err)}`)
+            }
+          }}
+        >
+          <Upload className="h-3.5 w-3.5" />
+          Import theme
+        </Button>
+      </Actions>
+    </Row>
   )
 }
 
-// ---------- Style ----------
+// ---------- Style tab ----------
 
 export function StyleSection() {
   const a = useAppearance((s) => s.appearance)
   const update = useAppearance((s) => s.update)
   return (
-    <section data-style-settings>
-      <SectionTitle id="settings-style">Style</SectionTitle>
-      <Grid>
-        <RowLabel>Surfaces</RowLabel>
-        <Segmented<Style>
-          label="Style"
-          value={a.style}
-          onChange={(style) => update({ style })}
-          options={[
-            { value: 'flat', label: 'Flat' },
-            { value: 'glass', label: 'Liquid glass' },
-            { value: 'aero', label: 'Aero' },
-            { value: 'floating', label: 'Floating' },
-            { value: 'terminal', label: 'Terminal' },
-            { value: 'retro', label: 'Retro OS' },
-          ]}
-        />
-        <RowLabel>Corners</RowLabel>
-        <Segmented<Radius>
-          label="Corners"
-          value={a.radius}
-          onChange={(radius) => update({ radius })}
-          options={[
-            { value: 'sharp', label: 'Sharp' },
-            { value: 'soft', label: 'Soft' },
-            { value: 'round', label: 'Round' },
-          ]}
-        />
-        <RowLabel>Font</RowLabel>
-        <Segmented<Font>
-          label="Font"
-          value={a.font}
-          onChange={(font) => update({ font })}
-          options={[
-            { value: 'system', label: 'System' },
-            { value: 'rounded', label: 'Rounded' },
-            { value: 'mono', label: 'Mono' },
-            { value: 'serif', label: 'Serif' },
-          ]}
-        />
-        <RowLabel>Density</RowLabel>
-        <Segmented<Density>
-          label="Density"
-          value={a.density}
-          onChange={(density) => update({ density })}
-          options={[
-            { value: 'compact', label: 'Compact' },
-            { value: 'comfortable', label: 'Comfortable' },
-            { value: 'spacious', label: 'Spacious' },
-          ]}
-        />
-        <RowLabel>Cards</RowLabel>
-        <Toggle label="Show each link’s site" hint="A second line under the title, like github.com." checked={a.details} onChange={(details) => update({ details })} />
-      </Grid>
-    </section>
+    <div data-style-settings className="flex flex-col gap-9">
+      <Section title="Surfaces" description="How panels, cards and dialogs are drawn. Colours always come from your theme.">
+        <Group>
+          <Row label="Style">
+            <Segmented<Style>
+              label="Style"
+              value={a.style}
+              onChange={(style) => update({ style })}
+              options={[
+                { value: 'flat', label: 'Flat' },
+                { value: 'glass', label: 'Liquid glass' },
+                { value: 'aero', label: 'Aero' },
+                { value: 'floating', label: 'Floating' },
+                { value: 'terminal', label: 'Terminal' },
+                { value: 'retro', label: 'Retro OS' },
+                { value: 'apple', label: 'Apple' },
+                { value: 'brave', label: 'Brave' },
+              ]}
+            />
+          </Row>
+          <Row label="Corners">
+            <Segmented<Radius>
+              label="Corners"
+              value={a.radius}
+              onChange={(radius) => update({ radius })}
+              options={[
+                { value: 'sharp', label: 'Sharp' },
+                { value: 'soft', label: 'Soft' },
+                { value: 'round', label: 'Round' },
+              ]}
+            />
+          </Row>
+        </Group>
+      </Section>
+
+      <Section title="Text and layout">
+        <Group>
+          <Row label="Font">
+            <Segmented<Font>
+              label="Font"
+              value={a.font}
+              onChange={(font) => update({ font })}
+              options={[
+                { value: 'system', label: 'System' },
+                { value: 'rounded', label: 'Rounded' },
+                { value: 'mono', label: 'Mono' },
+                { value: 'serif', label: 'Serif' },
+              ]}
+            />
+          </Row>
+          <Row label="Density">
+            <Segmented<Density>
+              label="Density"
+              value={a.density}
+              onChange={(density) => update({ density })}
+              options={[
+                { value: 'compact', label: 'Compact' },
+                { value: 'comfortable', label: 'Comfortable' },
+                { value: 'spacious', label: 'Spacious' },
+              ]}
+            />
+          </Row>
+          <Row label="Cards">
+            <Toggle
+              label="Show each link’s site"
+              hint="A second line under the title, like github.com."
+              checked={a.details}
+              onChange={(details) => update({ details })}
+            />
+          </Row>
+        </Group>
+      </Section>
+    </div>
   )
 }
 
-// ---------- Motion ----------
+// ---------- Motion tab ----------
 
 export function MotionSection() {
   const m = useAppearance((s) => s.appearance.motion)
   const update = useAppearance((s) => s.update)
   const off = m.level === 'off'
   return (
-    <section data-motion-settings>
-      <SectionTitle id="settings-motion">Motion</SectionTitle>
-      <Grid>
-        <RowLabel>Amount</RowLabel>
-        <div>
+    <div data-motion-settings className="flex flex-col gap-9">
+      <Section
+        title="Movement"
+        description={off ? 'Everything stays still.' : 'If your system asks for reduced motion, that always wins.'}
+        action={
           <Segmented<MotionLevel>
             label="Motion"
             value={m.level}
@@ -226,67 +238,84 @@ export function MotionSection() {
               { value: 'full', label: 'Full' },
             ]}
           />
-          <p className="mt-1.5 text-xs text-muted">
-            {off ? 'Everything stays still.' : 'If your system asks for reduced motion, that always wins.'}
-          </p>
-        </div>
-        <RowLabel>Space switch</RowLabel>
-        <Segmented<SpaceTransition>
-          label="Space switch"
-          value={m.space}
-          onChange={(space) => update({ motion: { space } })}
-          options={[
-            { value: 'none', label: 'Instant' },
-            { value: 'fade', label: 'Fade' },
-            { value: 'slide', label: 'Slide' },
-            { value: 'zoom', label: 'Zoom' },
-          ]}
-        />
-        <RowLabel>Card hover</RowLabel>
-        <Segmented<HoverEffect>
-          label="Card hover"
-          value={m.hover}
-          onChange={(hover) => update({ motion: { hover } })}
-          options={[
-            { value: 'none', label: 'None' },
-            { value: 'lift', label: 'Lift' },
-            { value: 'tilt', label: '3D tilt' },
-            { value: 'glow', label: 'Glow' },
-          ]}
-        />
-        <RowLabel>Entrance</RowLabel>
-        <Segmented<Entrance>
-          label="Entrance"
-          value={m.entrance}
-          onChange={(entrance) => update({ motion: { entrance } })}
-          options={[
-            { value: 'none', label: 'None' },
-            { value: 'rise', label: 'Rise' },
-            { value: 'stagger', label: 'Cascade' },
-          ]}
-        />
-        <RowLabel>Background</RowLabel>
-        <Segmented<Ambient>
-          label="Animated background"
-          value={m.ambient}
-          onChange={(ambient) => update({ motion: { ambient } })}
-          options={[
-            { value: 'none', label: 'None' },
-            { value: 'aurora', label: 'Aurora' },
-            { value: 'drift', label: 'Drift' },
-            { value: 'bubbles', label: 'Bubbles' },
-            { value: 'grid', label: 'Synth grid' },
-            { value: 'scanlines', label: 'CRT lines' },
-          ]}
-        />
-        <RowLabel>Drag and drop</RowLabel>
-        <Toggle label="Springy drop" hint="Cards land with a small bounce." checked={m.spring} onChange={(spring) => update({ motion: { spring } })} />
-      </Grid>
-    </section>
+        }
+      >
+        <Group>
+          <Row label="Space switch">
+            <Segmented<SpaceTransition>
+              label="Space switch"
+              value={m.space}
+              onChange={(space) => update({ motion: { space } })}
+              options={[
+                { value: 'none', label: 'Instant' },
+                { value: 'fade', label: 'Fade' },
+                { value: 'slide', label: 'Slide' },
+                { value: 'zoom', label: 'Zoom' },
+                { value: 'swipe', label: 'Swipe' },
+                { value: 'blur', label: 'Blur' },
+              ]}
+            />
+          </Row>
+          <Row label="Card hover">
+            <Segmented<HoverEffect>
+              label="Card hover"
+              value={m.hover}
+              onChange={(hover) => update({ motion: { hover } })}
+              options={[
+                { value: 'none', label: 'None' },
+                { value: 'lift', label: 'Lift' },
+                { value: 'tilt', label: '3D tilt' },
+                { value: 'glow', label: 'Glow' },
+              ]}
+            />
+          </Row>
+          <Row label="Entrance">
+            <Segmented<Entrance>
+              label="Entrance"
+              value={m.entrance}
+              onChange={(entrance) => update({ motion: { entrance } })}
+              options={[
+                { value: 'none', label: 'None' },
+                { value: 'rise', label: 'Rise' },
+                { value: 'stagger', label: 'Cascade' },
+              ]}
+            />
+          </Row>
+          <Row label="Drag and drop">
+            <Toggle label="Springy drop" hint="Cards land with a small bounce." checked={m.spring} onChange={(spring) => update({ motion: { spring } })} />
+          </Row>
+        </Group>
+      </Section>
+
+      <Section title="Animated background" description="A slow layer behind your board, in your theme’s colours.">
+        <Group>
+          <Row label="Effect">
+            <Segmented<Ambient>
+              label="Animated background"
+              columns={5}
+              value={m.ambient}
+              onChange={(ambient) => update({ motion: { ambient } })}
+              options={[
+                { value: 'none', label: 'None' },
+                { value: 'aurora', label: 'Aurora' },
+                { value: 'drift', label: 'Drift' },
+                { value: 'bubbles', label: 'Bubbles' },
+                { value: 'grid', label: 'Synth grid' },
+                { value: 'scanlines', label: 'CRT lines' },
+                { value: 'stars', label: 'Stars' },
+                { value: 'waves', label: 'Waves' },
+                { value: 'fireflies', label: 'Fireflies' },
+                { value: 'lava', label: 'Lava' },
+              ]}
+            />
+          </Row>
+        </Group>
+      </Section>
+    </div>
   )
 }
 
-// ---------- Widgets ----------
+// ---------- Widgets tab ----------
 
 export function WidgetSection() {
   const w = useWidgets((s) => s.settings)
@@ -305,38 +334,45 @@ export function WidgetSection() {
   }
 
   return (
-    <section data-widget-settings>
-      <SectionTitle id="settings-widgets">Widgets</SectionTitle>
-      <div className="mb-3">
-        <Toggle label="Show the widget band" hint="Clock, search and cards above your stacks." checked={!w.collapsed} onChange={(v) => update({ collapsed: !v })} />
-      </div>
-      <div className="grid grid-cols-2 gap-x-4 gap-y-2.5">
-        {WIDGETS.map((x) => (
-          <Toggle
-            key={x.id}
-            label={x.name}
-            hint={x.blurb}
-            checked={w.enabled[x.id]}
-            onChange={(v) => void toggle(x.id, v)}
-          />
-        ))}
-      </div>
+    <div data-widget-settings className="flex flex-col gap-9">
+      <Section title="Widgets" description="Clock and search sit above your stacks, the cards below them.">
+        <Group>
+          <Row label="Widget band">
+            <Toggle
+              tone="accent"
+              label="Show widgets"
+              hint="Turn the whole band on or off."
+              checked={!w.collapsed}
+              onChange={(v) => update({ collapsed: !v })}
+            />
+          </Row>
+          <Row label="Show">
+            <div className="grid grid-cols-2 gap-x-6 gap-y-3">
+              {WIDGETS.map((x) => (
+                <Toggle key={x.id} label={x.name} hint={x.blurb} checked={w.enabled[x.id]} onChange={(v) => void toggle(x.id, v)} />
+              ))}
+            </div>
+          </Row>
+        </Group>
+      </Section>
 
-      <div className="mt-4">
-        <Grid>
-          <RowLabel>Your name</RowLabel>
-          <input className={`${input} w-48`} value={w.name} maxLength={40} placeholder="For the greeting" onChange={(e) => update({ name: e.target.value })} />
-          <RowLabel>Clock</RowLabel>
-          <div className="flex flex-wrap gap-x-5 gap-y-2">
-            <Toggle label="24-hour" checked={w.h24} onChange={(h24) => update({ h24 })} />
-            <Toggle label="Seconds" checked={w.seconds} onChange={(seconds) => update({ seconds })} />
-          </div>
-          <RowLabel>Other zones</RowLabel>
-          <div>
+      <Section title="Details">
+        <Group>
+          <Row label="Your name" hint="For the greeting.">
+            <input className={`${fieldClass} w-56`} value={w.name} maxLength={40} placeholder="Alex" aria-label="Your name" onChange={(e) => update({ name: e.target.value })} />
+          </Row>
+          <Row label="Clock">
+            <div className="flex flex-wrap gap-x-6">
+              <Toggle label="24-hour" checked={w.h24} onChange={(h24) => update({ h24 })} />
+              <Toggle label="Seconds" checked={w.seconds} onChange={(seconds) => update({ seconds })} />
+            </div>
+          </Row>
+          <Row label="Other zones" hint={zoneError ?? 'Up to four, by city name in the IANA list.'}>
             <input
-              className={`${input} w-full`}
+              className={`${fieldClass} w-full`}
               value={zones}
               placeholder="America/New_York, Asia/Tokyo"
+              aria-label="Other time zones"
               onChange={(e) => setZones(e.target.value)}
               onBlur={() => {
                 const list = zones.split(',').map((z) => z.trim()).filter(Boolean)
@@ -345,48 +381,101 @@ export function WidgetSection() {
                 update({ zones: list.filter(isZone) })
               }}
             />
-            <p className="mt-1 text-xs text-muted">{zoneError ?? 'Up to four, by city name in the IANA list.'}</p>
-          </div>
-          <RowLabel>Search with</RowLabel>
-          <select className={`${input} w-48`} value={w.engine} onChange={(e) => update({ engine: e.target.value as EngineId })} aria-label="Search engine">
-            {(Object.keys(ENGINES) as EngineId[]).map((id) => (
-              <option key={id} value={id}>
-                {ENGINES[id].name}
-              </option>
-            ))}
-          </select>
-          <RowLabel>Weather</RowLabel>
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-xs text-fg">{w.weather.city || 'No city yet (set it on the card)'}</span>
-            {w.weather.lat !== null && (
-              <button type="button" className="text-xs text-muted underline-offset-2 hover:text-fg hover:underline" onClick={() => update({ weather: { city: '', lat: null, lon: null } })}>
-                Change city
-              </button>
-            )}
-            <Segmented<'c' | 'f'>
-              label="Temperature unit"
-              value={w.weather.unit}
-              onChange={(unit) => update({ weather: { unit } })}
-              options={[
-                { value: 'c', label: '°C' },
-                { value: 'f', label: '°F' },
-              ]}
-            />
-          </div>
-          <RowLabel>Countdown</RowLabel>
-          <div className="flex flex-wrap gap-2">
-            <input className={`${input} w-40`} value={w.countdown.label} maxLength={40} placeholder="What for" onChange={(e) => update({ countdown: { label: e.target.value } })} aria-label="Countdown label" />
-            <input className={input} type="date" value={w.countdown.date} onChange={(e) => update({ countdown: { date: e.target.value } })} aria-label="Countdown date" />
-          </div>
-          <RowLabel>Focus timer</RowLabel>
-          <div className="flex items-center gap-2 text-xs text-muted">
-            <input className={`${input} w-14`} type="number" min={1} max={120} value={w.pomodoro.work} onChange={(e) => update({ pomodoro: { work: Number(e.target.value) } })} aria-label="Focus minutes" />
-            min focus
-            <input className={`${input} w-14`} type="number" min={1} max={60} value={w.pomodoro.rest} onChange={(e) => update({ pomodoro: { rest: Number(e.target.value) } })} aria-label="Break minutes" />
-            min break
-          </div>
-        </Grid>
-      </div>
-    </section>
+          </Row>
+          <Row label="Search with">
+            <select className={`${fieldClass} w-56`} value={w.engine} onChange={(e) => update({ engine: e.target.value as EngineId })} aria-label="Search engine">
+              {(Object.keys(ENGINES) as EngineId[]).map((id) => (
+                <option key={id} value={id}>
+                  {ENGINES[id].name}
+                </option>
+              ))}
+            </select>
+          </Row>
+          <WeatherRow />
+          <Row label="Countdown">
+            <div className="flex flex-wrap gap-2">
+              <input className={`${fieldClass} w-44`} value={w.countdown.label} maxLength={40} placeholder="What for" onChange={(e) => update({ countdown: { label: e.target.value } })} aria-label="Countdown label" />
+              <input className={fieldClass} type="date" value={w.countdown.date} onChange={(e) => update({ countdown: { date: e.target.value } })} aria-label="Countdown date" />
+            </div>
+          </Row>
+          <Row label="Focus timer">
+            <div className="flex flex-wrap items-center gap-2 text-xs text-muted">
+              <input className={`${fieldClass} w-16`} type="number" min={1} max={120} value={w.pomodoro.work} onChange={(e) => update({ pomodoro: { work: Number(e.target.value) } })} aria-label="Focus minutes" />
+              <span className="mr-2">min focus</span>
+              <input className={`${fieldClass} w-16`} type="number" min={1} max={60} value={w.pomodoro.rest} onChange={(e) => update({ pomodoro: { rest: Number(e.target.value) } })} aria-label="Break minutes" />
+              <span>min break</span>
+            </div>
+          </Row>
+        </Group>
+      </Section>
+    </div>
+  )
+}
+
+/** The weather city, set right here: the Weather card may well be off. */
+function WeatherRow() {
+  const weather = useWidgets((s) => s.settings.weather)
+  const update = useWidgets((s) => s.update)
+  const [city, setCity] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const find = async () => {
+    const name = city.trim()
+    if (!name) return
+    setBusy(true)
+    setError(null)
+    try {
+      const hit = await geocodeCity(name)
+      if (!hit) setError(`No place called “${name}” found.`)
+      else {
+        update({ weather: hit })
+        setCity('')
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const unit = (
+    <Segmented<'c' | 'f'>
+      label="Temperature unit"
+      value={weather.unit}
+      onChange={(u) => update({ weather: { unit: u } })}
+      options={[
+        { value: 'c', label: '°C' },
+        { value: 'f', label: '°F' },
+      ]}
+    />
+  )
+
+  return (
+    <Row label="Weather" hint={error ?? (weather.lat === null ? 'Looked up once with Open-Meteo, no account.' : undefined)}>
+      {weather.lat !== null ? (
+        <div className="flex flex-wrap items-center gap-3">
+          <span className="text-xs font-medium text-fg">{weather.city}</span>
+          <Button variant="quiet" onClick={() => update({ weather: { city: '', lat: null, lon: null } })}>
+            Change city
+          </Button>
+          {unit}
+        </div>
+      ) : (
+        <form
+          className="flex flex-wrap items-center gap-2"
+          onSubmit={(e) => {
+            e.preventDefault()
+            void find()
+          }}
+        >
+          <input className={`${fieldClass} w-44`} value={city} placeholder="City" aria-label="Weather city" onChange={(e) => setCity(e.target.value)} />
+          <Button type="submit" disabled={busy || !city.trim()}>
+            {busy ? 'Finding…' : 'Set city'}
+          </Button>
+          {unit}
+        </form>
+      )}
+    </Row>
   )
 }
