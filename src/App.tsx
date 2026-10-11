@@ -150,7 +150,11 @@ export default function App() {
     if (data) setDragging(data)
   }
 
-  const onDragEnd = async (e: DragEndEvent) => {
+  // A failed move used to vanish silently; say so instead.
+  const onDragEnd = (e: DragEndEvent) =>
+    applyDrop(e).catch((err) => useStackableStore.getState().reportError("Couldn't move that:", err))
+
+  const applyDrop = async (e: DragEndEvent) => {
     setDragging(null)
     const { active, over } = e
     if (!over || !tree) return

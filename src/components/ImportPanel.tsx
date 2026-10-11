@@ -4,6 +4,7 @@ import { listSources, createPlannedSpace, type ImportSource } from '../lib/impor
 import { deleteSpace } from '../lib/bookmarks'
 import { plural } from '../lib/importPlan'
 import { useStackableStore } from '../store/useStackableStore'
+import { recordError } from '../lib/diagnostics'
 
 /** Chrome's folders with links in them; null while loading. */
 export function useImportSources(): ImportSource[] | null {
@@ -12,7 +13,12 @@ export function useImportSources(): ImportSource[] | null {
     let live = true
     listSources()
       .then((s) => live && setSources(s))
-      .catch(() => live && setSources([]))
+      .catch((err) => {
+        // Used to look exactly like "no bookmarks to copy". Show the reason as well.
+        const message = recordError(err)
+        useStackableStore.getState().showToast({ verb: "Couldn't read your bookmarks:", title: message, duration: 8000 })
+        if (live) setSources([])
+      })
     return () => {
       live = false
     }
@@ -87,7 +93,7 @@ export function ImportPanel({ sources, variant, onDone }: Props) {
       celebrate()
       onDone?.()
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
+      setError(recordError(err))
     } finally {
       setProgress(null)
       if (variant === 'welcome') setOnboarding(false)

@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useStackableStore } from '../store/useStackableStore'
 import { SortableContext, rectSortingStrategy } from '@dnd-kit/sortable'
 import { Download, Check } from 'lucide-react'
 import type { Space } from '../lib/types'
@@ -16,7 +17,11 @@ export function SpaceView({ space }: Props) {
   const [copied, setCopied] = useState(false)
 
   const onExport = async () => {
-    const backup = await exportBackup()
+    const backup = await exportBackup().catch((err) => {
+      useStackableStore.getState().reportError("Couldn't export:", err)
+      return null
+    })
+    if (!backup) return
     const date = new Date().toISOString().slice(0, 10)
     downloadJson(`stackboard-backup-${date}.json`, backup)
     setCopied(true)

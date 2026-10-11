@@ -3,11 +3,12 @@ import { Plus } from 'lucide-react'
 import { useStackableStore } from '../store/useStackableStore'
 import { ImportPanel, useImportSources } from './ImportPanel'
 import { StarterPacks } from './StarterPacks'
+import { BROWSER_NAME } from '../lib/browser'
 
 const delay = (ms: number): CSSProperties => ({ animationDelay: `${ms}ms` })
 
 /**
- * The empty board (0.4.0). Leads with the user's own bookmarks when Chrome has any, then
+ * The empty board (0.4.0). Leads with the user's own bookmarks when the browser has any, then
  * starter packs, then a blank space. Stays up while an import runs (store.onboarding).
  */
 export function Welcome() {
@@ -23,8 +24,8 @@ export function Welcome() {
           Welcome to Stackboard
         </h2>
         <p className="rise on-wallpaper mt-2 max-w-lg text-[15px] leading-relaxed text-muted" style={delay(150)}>
-          Your new tab, sorted into spaces of link stacks. Everything is saved as ordinary Chrome
-          bookmarks, so it syncs with Chrome and works offline.
+          Your new tab, sorted into spaces of link stacks. Everything is saved as ordinary {BROWSER_NAME}
+          bookmarks, so it syncs with {BROWSER_NAME} and works offline.
         </p>
 
         {sources === null && <div className="mt-8 h-44 animate-pulse rounded-2xl bg-card/60" />}

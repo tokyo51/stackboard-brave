@@ -2,6 +2,8 @@
 
 Your Chrome bookmarks as a board on the new tab page. Spaces down the side, stacks of links across, and you can drag anything anywhere.
 
+> **This fork: Brave-hardened Stackboard.** Fork of [swole/stackboard](https://github.com/swole/stackboard) (MIT) with fixes for a Brave report where "New space" and starter packs did nothing and the bookmark import came up empty. Everything still works in Chrome. See [Brave changes](#brave-changes) below.
+
 **[Get it free on the Chrome Web Store](https://chromewebstore.google.com/detail/bgcedhchngcopaefchpkbhioagknnpma?utm_source=github&utm_medium=readme&utm_campaign=oss)**
 
 ![A Stackboard board in Catppuccin Mocha over a dusk wallpaper: a Work space with Daily, Design, Dashboards and Docs stacks](docs/mocha.png)
@@ -54,6 +56,43 @@ Then open `chrome://extensions`, turn on **Developer mode**, click **Load unpack
 ## Stack
 
 Manifest V3, React 18, TypeScript, Vite with the crxjs plugin, Tailwind 4, Zustand and dnd-kit. Built with Claude Code.
+
+## Brave changes
+
+What went wrong: every write (new space, starter pack, import) first runs `ensureRoot()`, which
+waits on a Web Lock shared by all Stackboard tabs. If another Stackboard tab held that lock and
+never released it (a frozen or hung background tab), every write waited forever. Since nothing
+caught the errors, the button simply "did nothing", and a failed import looked exactly like
+"no bookmarks to copy". A fresh Brave profile does not trigger it (the full suite passes there),
+which is why it only bites some setups.
+
+| Change | Where |
+|---|---|
+| Root lock gives up after 3 s and continues (the scan still picks the fullest root), and a known root skips the lock entirely, so refreshes are cheaper too | `src/lib/bookmarks.ts` |
+| "Other bookmarks" found by `folderType` instead of the hard-coded id `'2'`; the root scan covers every top-level folder; with two "Other bookmarks" (account storage) the syncing one is used | `src/lib/bookmarks.ts` |
+| Failed writes show a toast with the reason instead of doing nothing: spaces, stacks, bookmarks, starter packs, import, drag and drop, delete, export | store `reportError`, modals, `App.tsx` |
+| Settings › Troubleshooting › **Copy diagnostics**: browser, top-level folder ids, types and sync state, where the Stackboard folder is, held locks, recent errors (no links) | `src/lib/diagnostics.ts` |
+| Says "Brave" and `brave://bookmarks` in Brave, "Chrome" in Chrome | `src/lib/browser.ts` |
+| e2e suite runs in Brave (extension loaded over the CDP pipe), works on macOS (Cmd+click) and non-English profiles, plus 4 checks for the above | `tests/e2e.mjs` |
+
+Verified in Brave 1.97 (Chromium 155): 89/89 e2e checks. Unit tests pass.
+
+### Install in Brave
+
+```bash
+npm install
+npm run build
+```
+
+Open `brave://extensions`, turn on **Developer mode**, click **Load unpacked** and pick `dist`.
+Turn off the Web Store version of Stackboard first, since only one extension can own the new tab.
+Your board carries over: both versions use the same `Stackboard` bookmark folder.
+
+### e2e in Brave
+
+```bash
+STACKABLE_TEST_CHROME="/Applications/Brave Browser.app/Contents/MacOS/Brave Browser" STACKABLE_DIST="$PWD/dist" node tests/e2e.mjs
+```
 
 ## License
 

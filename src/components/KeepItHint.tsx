@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { X } from 'lucide-react'
 import { dismissKeepHint, shouldShowKeepHint } from '../lib/onboarding'
+import { BROWSER_NAME } from '../lib/browser'
 
 /**
  * First new tabs after an install (0.4.0): Chrome asks whether to keep an extension's new
@@ -32,7 +33,7 @@ export function KeepItHint() {
     >
       <div className="pop-in pointer-events-auto flex items-center gap-3 rounded-full bg-inverse py-1.5 pl-4 pr-1.5 text-sm text-on-inverse shadow-toast ring-1 ring-on-inverse/10 ring-inset">
         <span>
-          If Chrome asks whether to keep this page, choose{' '}
+          If {BROWSER_NAME} asks whether to keep this page, choose{' '}
           <span className="rounded-md bg-on-inverse/10 px-1.5 py-0.5 font-semibold text-inverse-strong">Keep it</span>
         </span>
         <button

@@ -2,7 +2,7 @@
 // Loads dist/ unpacked into a throwaway profile, seeds bookmarks through chrome.bookmarks,
 // and drives the new-tab page with real mouse and keyboard input. 79 checks, ~2 min.
 //
-// Setup (branded Chrome ignores --load-extension, so use Chrome for Testing):
+// Setup (branded Chrome ignores --load-extension, so use Chrome for Testing, or Brave via the CDP pipe):
 //   npm i puppeteer-core@24 @puppeteer/browsers@2
 //   npx @puppeteer/browsers install chrome@stable --path ./browsers
 // Run: STACKABLE_TEST_CHROME=<.../chrome-win64/chrome.exe> STACKABLE_DIST=<.../dist> node e2e.mjs
@@ -37,16 +37,22 @@ const check = (name, ok, extra = '') => {
   console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${extra ? `  (${extra})` : ''}`)
 }
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
+// The bookmarks bar is named in the browser's UI language (Lesezeichenleiste on a German Mac).
+const BAR = /^(Bookmarks bar|Lesezeichenleiste)$/
 
+// Brave (and branded Chrome 137+) ignore --load-extension; there the extension goes in over the
+// CDP pipe instead (Extensions.loadUnpacked). Chrome for Testing keeps the original flags.
+const VIA_PIPE = /brave/i.test(CHROME)
 const browser = await puppeteer.launch({
   executablePath: CHROME,
   headless: true,
   protocolTimeout: 30000,
   userDataDir: PROFILE,
-  ignoreDefaultArgs: ['--disable-extensions'],
+  ...(VIA_PIPE
+    ? { pipe: true, enableExtensions: [EXT] }
+    : { ignoreDefaultArgs: ['--disable-extensions'] }),
   args: [
-    `--disable-extensions-except=${EXT}`,
-    `--load-extension=${EXT}`,
+    ...(VIA_PIPE ? [] : [`--disable-extensions-except=${EXT}`, `--load-extension=${EXT}`]),
     '--no-first-run',
     '--no-default-browser-check',
     '--window-size=1400,900',
@@ -59,10 +65,9 @@ try {
   const probe = await browser.newPage()
   await probe.goto('chrome://extensions')
   await sleep(800)
-  const extId = await probe.evaluate(() => {
-    const list = document.querySelector('extensions-manager')?.shadowRoot?.querySelector('extensions-item-list')
-    return list?.shadowRoot?.querySelector('extensions-item')?.id ?? null
-  })
+  const extId = new URL(
+    (await browser.waitForTarget((t) => t.type() === 'service_worker' && t.url().startsWith('chrome-extension://'))).url(),
+  ).host
   check('extension loaded', !!extId, extId ?? 'no id')
   if (!extId) throw new Error('extension did not load')
   const NTP = `chrome-extension://${extId}/newtab.html`
@@ -194,9 +199,10 @@ try {
   const example = await ntp.evaluateHandle(() =>
     [...document.querySelectorAll('a[href^="http"]')].find((a) => a.textContent.includes('Example Domain')),
   )
-  await ntp.keyboard.down('Control')
+  const MOD = process.platform === 'darwin' ? 'Meta' : 'Control'
+  await ntp.keyboard.down(MOD)
   await example.click()
-  await ntp.keyboard.up('Control')
+  await ntp.keyboard.up(MOD)
   await sleep(1500)
   const after = (await browser.pages()).length
   check('ctrl+click opens a new tab', after === before + 1, `${before} -> ${after}`)
@@ -431,14 +437,14 @@ try {
     packs: document.querySelectorAll('[data-welcome="packs"] button').length,
   }))
   check('welcome shows on an empty board', welcome.title === 'Welcome to Stackboard', welcome.title)
-  check('welcome offers the bookmarks bar with counts', welcome.rows.some((r) => r.includes('Bookmarks bar') && r.includes('3 links') && r.includes('3 stacks')), JSON.stringify(welcome.rows))
+  check('welcome offers the bookmarks bar with counts', welcome.rows.some((r) => /Bookmarks bar|Lesezeichenleiste/.test(r) && r.includes('3 links') && r.includes('3 stacks')), JSON.stringify(welcome.rows))
   check('welcome says what stays behind', welcome.note.includes('1 bookmarklet or browser page stays behind'), welcome.note)
   check('welcome lists five starter packs', welcome.packs === 5, String(welcome.packs))
 
   await ntp5.evaluate(() =>
     [...document.querySelectorAll('[data-welcome="import"] button')].find((b) => b.textContent.startsWith('Copy 3 links')).click(),
   )
-  await ntp5.waitForFunction(() => document.querySelector('main h1')?.textContent === 'Bookmarks bar', { timeout: 15000 })
+  await ntp5.waitForFunction(() => /^(Bookmarks bar|Lesezeichenleiste)$/.test(document.querySelector('main h1')?.textContent ?? ''), { timeout: 15000 })
   await sleep(500)
   await ntp5.screenshot({ path: path.join(SHOTS, '21-imported.png') })
   const copied = await control.evaluate(async () => {
@@ -451,7 +457,7 @@ try {
       bar: (await chrome.bookmarks.getChildren('1')).length,
     }
   })
-  check('copy makes a space from the bookmarks bar', copied.space === '⭐ Bookmarks bar', copied.space)
+  check('copy makes a space from the bookmarks bar', BAR.test(copied.space.replace(/^⭐ /, '')), copied.space)
   check('each folder becomes a stack with its links', copied.stacks.join('|') === 'On the bar:1|Reading:1|Reading › Deep:1', copied.stacks.join('|'))
   check('originals stay in the bookmarks bar', copied.bar === 3, String(copied.bar))
   const toast5 = await ntp5.evaluate(() => document.querySelector('.toast')?.textContent ?? '')
@@ -810,6 +816,40 @@ try {
       JSON.parse(fs.readFileSync(enMsgs, 'utf8')).extName.message === 'Stackboard: Bookmark Manager & New Tab Spaces',
     `${shipped.default_locale} ${shipped.name}`,
   )
+
+  // ---------- Brave report: buttons that did nothing ----------
+  // Another Stackboard tab holding the root lock forever made every write wait forever, with no
+  // error. ensureRoot now gives up on the lock after 3s; diagnostics show who holds it.
+  const holder = await browser.newPage()
+  await holder.goto(NTP)
+  await control.evaluate(() => chrome.storage.local.remove('stackableRootId'))
+  await holder.evaluate(() => void navigator.locks.request('stackboard-root', () => new Promise(() => {})))
+  const diagPage = await browser.newPage()
+  await diagPage.goto(NTP)
+  await diagPage.waitForFunction(() => !!document.querySelector('main h1'), { timeout: 10000 })
+  await diagPage.evaluate(() => [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Settings').click())
+  await sleep(400)
+  await diagPage.evaluate(() => [...document.querySelectorAll('[data-troubleshooting] button')][0].click())
+  await diagPage.waitForFunction(() => !!document.querySelector('[data-troubleshooting] pre'), { timeout: 10000 })
+  const report = JSON.parse(await diagPage.evaluate(() => document.querySelector('[data-troubleshooting] pre').textContent))
+  check('a stuck root lock no longer blocks writes', String(report.ensureRoot).startsWith('ok '), String(report.ensureRoot))
+  check('diagnostics show the held lock', report.locks?.held?.includes('stackboard-root'), JSON.stringify(report.locks))
+  check('diagnostics find the root by folder type', report.rootFolders?.length === 1 && report.topFolders?.some((f) => f.folderType === 'other'), JSON.stringify(report.rootFolders))
+  await holder.close()
+  await diagPage.keyboard.press('Escape')
+  await sleep(300)
+  // A write the browser refuses (the Brave report): the button used to do nothing at all.
+  await diagPage.evaluate(() => {
+    chrome.bookmarks.create = () => Promise.reject(new Error('probe failure'))
+    ;[...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Settings').click()
+  })
+  await sleep(400)
+  await clickText(diagPage, 'button', 'Starter packs')
+  await sleep(400)
+  await clickText(diagPage, '[role="dialog"] li button', 'Add')
+  await sleep(800)
+  const failToast = await diagPage.evaluate(() => document.querySelector('.toast')?.textContent ?? '')
+  check('a failed write says so instead of doing nothing', failToast.includes('probe failure'), failToast)
 } catch (e) {
   console.log('ERROR', e.message)
   results.push({ name: 'script error', ok: false })

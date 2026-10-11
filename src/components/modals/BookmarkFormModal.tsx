@@ -37,6 +37,7 @@ export function BookmarkFormModal({
 }: Props) {
   const close = useStackableStore((s) => s.closeModal)
   const refresh = useStackableStore((s) => s.refresh)
+  const reportError = useStackableStore((s) => s.reportError)
 
   const [title, setTitle] = useState(initialTitle)
   const [url, setUrl] = useState(initialUrl)
@@ -62,6 +63,8 @@ export function BookmarkFormModal({
       }
       await refresh()
       close()
+    } catch (err) {
+      reportError(mode === 'add' ? "Couldn't add the bookmark:" : "Couldn't save the bookmark:", err)
     } finally {
       setSubmitting(false)
     }

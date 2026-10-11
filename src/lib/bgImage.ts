@@ -1,3 +1,4 @@
+import { BROWSER_NAME } from './browser'
 // The board's background picture (0.5.0). One Blob in IndexedDB, on this device only: never in
 // chrome.storage (sync is far too small, and a picture has no business syncing) and no
 // unlimitedStorage permission (one screen-sized image fits the default quota easily).
@@ -73,7 +74,7 @@ export async function prepareBgImage(file: File): Promise<BgImageRecord> {
   try {
     bitmap = await createImageBitmap(file)
   } catch {
-    throw new Error("Chrome can't open that picture. Try a JPG, PNG or WebP.")
+    throw new Error(`${BROWSER_NAME} can't open that picture. Try a JPG, PNG or WebP.`)
   }
   const { width, height } = bitmap
   const scale = Math.min(1, maxEdge() / Math.max(width, height))
@@ -87,7 +88,7 @@ export async function prepareBgImage(file: File): Promise<BgImageRecord> {
   const h = Math.max(1, Math.round(height * scale))
   const canvas = new OffscreenCanvas(w, h)
   const ctx = canvas.getContext('2d')
-  if (!ctx) throw new Error("Chrome can't open that picture.")
+  if (!ctx) throw new Error(`${BROWSER_NAME} can't open that picture.`)
   ctx.drawImage(bitmap, 0, 0, w, h)
   bitmap.close()
   const blob = await canvas.convertToBlob({ type: 'image/webp', quality: 0.9 })

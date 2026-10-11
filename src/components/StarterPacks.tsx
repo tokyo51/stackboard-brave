@@ -12,6 +12,7 @@ interface Props {
 
 export function StarterPacks({ variant }: Props) {
   const refresh = useStackableStore((s) => s.refresh)
+  const reportError = useStackableStore((s) => s.reportError)
   const selectSpace = useStackableStore((s) => s.selectSpace)
   const flashItem = useStackableStore((s) => s.flashItem)
   const setOnboarding = useStackableStore((s) => s.setOnboarding)
@@ -30,6 +31,8 @@ export function StarterPacks({ variant }: Props) {
       flashItem(id)
       setAdded((prev) => new Set(prev).add(pack.id))
       celebrate()
+    } catch (err) {
+      reportError(`Couldn't add ${pack.name}:`, err)
     } finally {
       setBusy(null)
       if (variant === 'chips') setOnboarding(false)

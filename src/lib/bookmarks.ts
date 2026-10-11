@@ -6,8 +6,10 @@ import { batchFlags } from './fresh'
 const ROOT_TITLE = 'Stackboard'
 // The folder was "Stackable" before 0.3.0; ensureRoot renames it in place.
 const LEGACY_ROOT_TITLES = ['Stackable']
-const OTHER_BOOKMARKS_ID = '2' // Chrome's "Other bookmarks" folder
+const LEGACY_OTHER_BOOKMARKS_ID = '2' // "Other bookmarks" before folderType existed (Chrome < 134)
 const ROOT_ID_KEY = 'stackableRootId' // predates the rename; kept so existing caches still hit
+// How long a new tab waits for another tab's root lookup before going ahead without the lock.
+const LOCK_WAIT_MS = 3000
 
 /** Folder names Stackboard has used for its root; the importer never copies these. */
 export const rootTitles: readonly string[] = [ROOT_TITLE, ...LEGACY_ROOT_TITLES]
@@ -18,7 +20,7 @@ export const IS_EXTENSION =
   typeof chrome !== 'undefined' &&
   !!(chrome as { bookmarks?: unknown }).bookmarks
 
-type Node = chrome.bookmarks.BookmarkTreeNode
+type Node = chrome.bookmarks.BookmarkTreeNode & { folderType?: string; syncing?: boolean }
 
 function isFolder(n: Node): boolean {
   return !n.url
@@ -50,11 +52,33 @@ async function childCount(id: string): Promise<number> {
   }
 }
 
-// Root folders under Other bookmarks: the one holding the most spaces wins, the current
+/** The browser's own top-level folders (bar, other, mobile; twice when account storage is on). */
+async function topFolders(): Promise<Node[]> {
+  const [tree] = (await chrome.bookmarks.getTree()) as Node[]
+  return ((tree?.children ?? []) as Node[]).filter((n) => isFolder(n) && n.folderType !== 'managed')
+}
+
+/**
+ * Where a new root goes: "Other bookmarks". Found by folderType (Chrome 134+, Brave), not by
+ * the id '2', which is only a convention. With two "Other bookmarks" folders (Chrome account
+ * storage) the syncing one wins, so the board travels with the account as the README promises.
+ */
+async function otherBookmarksId(): Promise<string> {
+  const top = await topFolders()
+  const others = top.filter(
+    (n) => n.folderType === 'other' || (!n.folderType && n.id === LEGACY_OTHER_BOOKMARKS_ID),
+  )
+  const pick = others.find((n) => n.syncing) ?? others[0] ?? top.find((n) => !n.unmodifiable)
+  if (!pick) throw new Error('No bookmarks folder Stackboard can write to')
+  return pick.id
+}
+
+// Root folders in any top-level folder: the one holding the most spaces wins, the current
 // name breaks ties. Two can exist for a while: a device still on an old version can
 // recreate an empty "Stackable" after another device renamed the synced folder.
 async function findRootByScan(): Promise<string | null> {
-  const children = await chrome.bookmarks.getChildren(OTHER_BOOKMARKS_ID)
+  const top = await topFolders()
+  const children = (await Promise.all(top.map((t) => chrome.bookmarks.getChildren(t.id)))).flat()
   const candidates = children.filter(
     (c) => isFolder(c) && (c.title === ROOT_TITLE || LEGACY_ROOT_TITLES.includes(c.title)),
   )
@@ -66,16 +90,44 @@ async function findRootByScan(): Promise<string | null> {
   return sized[0].c.id
 }
 
+/** The cached root when it is clearly the right one: no lock needed, so every refresh stays cheap. */
+async function cachedRoot(): Promise<string | null> {
+  const cached = await getRootIdFromStorage()
+  const node = cached ? await getNode(cached) : null
+  if (!node || !isFolder(node) || node.title !== ROOT_TITLE) return null
+  return (await childCount(node.id)) > 0 ? node.id : null
+}
+
+function isLockTimeout(err: unknown): boolean {
+  const name = (err as { name?: string } | null)?.name
+  return name === 'TimeoutError' || name === 'AbortError'
+}
+
 /**
  * Ensure the Stackboard root folder exists, returning its id.
  * Uses the chrome.storage.local cache, falls back to a scan, creates if missing, and
  * renames a pre-0.3.0 "Stackable" folder in place.
  */
 export async function ensureRoot(): Promise<string> {
+  const fast = await cachedRoot()
+  if (fast) return fast
   // On a fresh profile the install tab and another new tab can load together; without the
   // lock each finds no root and creates its own. Web Locks span every page of the extension.
   const locks = typeof navigator !== 'undefined' ? navigator.locks : undefined
-  return locks ? locks.request('stackboard-root', ensureRootNow) : ensureRootNow()
+  if (!locks) return ensureRootNow()
+  try {
+    return await locks.request(
+      'stackboard-root',
+      { signal: AbortSignal.timeout(LOCK_WAIT_MS) },
+      ensureRootNow,
+    )
+  } catch (err) {
+    if (!isLockTimeout(err)) throw err
+    // Another Stackboard tab holds the lock and never lets go (a frozen or hung background
+    // tab). Waiting forever made every button silently do nothing; go ahead without it.
+    console.warn('Stackboard: root lock busy, continuing without it')
+    return ensureRootNow()
+  }
 }
 
 async function ensureRootNow(): Promise<string> {
@@ -93,7 +145,7 @@ async function ensureRootNow(): Promise<string> {
     root = scanned ? await getNode(scanned) : null
   }
   if (!root) {
-    root = await chrome.bookmarks.create({ parentId: OTHER_BOOKMARKS_ID, title: ROOT_TITLE })
+    root = await chrome.bookmarks.create({ parentId: await otherBookmarksId(), title: ROOT_TITLE })
   }
 
   if (root.id !== cached) await setRootIdInStorage(root.id)

@@ -10,6 +10,7 @@ import {
 } from '../lib/bookmarks'
 import type { OpenTabIndex } from '../lib/openTabs'
 import { prefs } from '../lib/prefs'
+import { recordError } from '../lib/diagnostics'
 
 type ModalState =
   | { kind: 'none' }
@@ -76,11 +77,14 @@ interface StackableState {
   setOnboarding: (on: boolean) => void
   celebrate: () => void
   removeWithUndo: (kind: DeletableKind, id: string, title: string, detail?: string) => Promise<void>
+  /** A bookmark write failed: say so (it used to fail silently) and keep it for diagnostics. */
+  reportError: (verb: string, err: unknown) => void
 }
 
 const UNDO_MS = 7000
 const NOTE_MS = 2200
 const CUE_MS = 1600
+const ERROR_MS = 8000
 
 let cueSeq = 0
 
@@ -114,7 +118,7 @@ export const useStackableStore = create<StackableState>((set, get) => ({
       set({ tree, selectedSpaceId: next, loading: false })
     } catch (err) {
       console.error('Failed to load Stackboard tree', err)
-      set({ error: err instanceof Error ? err.message : 'Unknown error', loading: false })
+      set({ error: recordError(err), loading: false })
     }
   },
 
@@ -152,11 +156,22 @@ export const useStackableStore = create<StackableState>((set, get) => ({
   setOpenTabs: (index) => set({ openTabs: index }),
   setOnboarding: (on) => set({ onboarding: on }),
 
+  reportError: (verb, err) => {
+    console.error(verb, err)
+    get().showToast({ verb, title: recordError(err), duration: ERROR_MS })
+  },
+
   removeWithUndo: async (kind, id, title, detail) => {
-    const snapshot = await snapshotNode(id)
-    if (kind === 'space') await deleteSpace(id)
-    else if (kind === 'stack') await deleteStack(id)
-    else await deleteBookmark(id)
+    let snapshot: Awaited<ReturnType<typeof snapshotNode>>
+    try {
+      snapshot = await snapshotNode(id)
+      if (kind === 'space') await deleteSpace(id)
+      else if (kind === 'stack') await deleteStack(id)
+      else await deleteBookmark(id)
+    } catch (err) {
+      get().reportError("Couldn't delete", err)
+      return
+    }
     await get().refresh()
 
     const restore = async () => {
