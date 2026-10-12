@@ -4,10 +4,13 @@ import { CSS } from '@dnd-kit/utilities'
 import {
   ChevronLeft,
   ChevronRight,
+  ChevronsDownUp,
+  ChevronsUpDown,
   Plus,
   Search,
   Settings as SettingsIcon,
   Command as CommandIcon,
+  SmilePlus,
   SquareKanban,
   GripVertical,
   MoreVertical,
@@ -16,11 +19,41 @@ import {
   X,
 } from 'lucide-react'
 import type { Space } from '../lib/types'
-import { useStackableStore } from '../store/useStackableStore'
+import { setCollapsed, useStackableStore } from '../store/useStackableStore'
+import { useItemMeta, useMetaFor, type ItemColor } from '../store/useItemMeta'
 import { glow } from '../lib/motion'
 import { topHit } from '../lib/search'
+import { stackLinks, walkStacks } from '../lib/bookmarks'
 import { openHere, openInNewTab } from '../lib/tabs'
 import { spaceIndexForKey, typingInField } from '../lib/shortcuts'
+import { openContextMenu, type MenuItem } from './ContextMenu'
+import { isMenuKey, openMenuAt } from './BookmarkCard'
+import { tint } from './BookmarkIcon'
+
+/** A space row's right-click menu; the kebab and the keyboard open the same one (0.8.0). */
+export function spaceMenu(space: Space, color: ItemColor | undefined): MenuItem[] {
+  const store = useStackableStore.getState()
+  const edit = (focusField?: 'emoji' | 'name') =>
+    store.openModal({ kind: 'space-edit', id: space.id, name: space.name, emoji: space.emoji, focusField })
+  const ids = walkStacks(space.stacks).map((s) => s.id)
+  return [
+    { label: 'Rename', icon: <Pencil className="h-3.5 w-3.5" />, onSelect: () => edit('name') },
+    { label: 'Change icon', icon: <SmilePlus className="h-3.5 w-3.5" />, onSelect: () => edit('emoji') },
+    { kind: 'separator' },
+    { kind: 'colors', value: color, onPick: (c) => useItemMeta.getState().set(space.id, { color: c }) },
+    { kind: 'separator' },
+    { label: 'Collapse all stacks', icon: <ChevronsDownUp className="h-3.5 w-3.5" />, disabled: ids.length === 0, onSelect: () => setCollapsed(ids, true) },
+    { label: 'Expand all', icon: <ChevronsUpDown className="h-3.5 w-3.5" />, disabled: ids.length === 0, onSelect: () => setCollapsed(ids, false) },
+    { kind: 'separator' },
+    {
+      label: 'Delete',
+      icon: <Trash2 className="h-3.5 w-3.5" />,
+      danger: true,
+      onSelect: () =>
+        store.openModal({ kind: 'confirm-delete', targetKind: 'space', id: space.id, name: space.name, childCount: space.stacks.length }),
+    },
+  ]
+}
 
 interface SortableSpaceProps {
   space: Space
@@ -32,7 +65,7 @@ function SortableSpaceRow({ space, active, onClick }: SortableSpaceProps) {
   const openModal = useStackableStore((s) => s.openModal)
   // A stack dropped onto this row glows it, so the move has somewhere visible to go.
   const flashSeq = useStackableStore((s) => (s.flash?.id === space.id ? s.flash.seq : 0))
-  const [menuOpen, setMenuOpen] = useState(false)
+  const color = useMetaFor(space.id).color
   const rowRef = useRef<HTMLDivElement | null>(null)
 
   const {
@@ -53,10 +86,12 @@ function SortableSpaceRow({ space, active, onClick }: SortableSpaceProps) {
     if (flashSeq) glow(rowRef.current, 80)
   }, [flashSeq])
 
-  // A stack is being dragged over this space row — show it as a drop target.
-  const stackIncoming = isOver && String(dragActive?.id ?? '').startsWith('st:')
+  // A stack is being dragged over this space row: show it as a drop target.
+  const stackIncoming = isOver && /^(st|sub):/.test(String(dragActive?.id ?? ''))
+  const colored = tint(color)
 
   const style = {
+    ...colored.style,
     transform: CSS.Translate.toString(transform),
     transition,
   }
@@ -83,26 +118,8 @@ function SortableSpaceRow({ space, active, onClick }: SortableSpaceProps) {
     })
   }
 
-  const openEdit = () => {
-    setMenuOpen(false)
-    openModal({
-      kind: 'space-edit',
-      id: space.id,
-      name: space.name,
-      emoji: space.emoji,
-    })
-  }
-
-  const openDelete = () => {
-    setMenuOpen(false)
-    openModal({
-      kind: 'confirm-delete',
-      targetKind: 'space',
-      id: space.id,
-      name: space.name,
-      childCount: space.stacks.length,
-    })
-  }
+  const menu = () => spaceMenu(space, color)
+  const title = space.name || 'Untitled'
 
   return (
     <div
@@ -111,6 +128,20 @@ function SortableSpaceRow({ space, active, onClick }: SortableSpaceProps) {
         setNodeRef(el)
       }}
       style={style}
+      data-space-row
+      data-color={colored['data-color']}
+      onContextMenu={(e) => {
+        // A keyboard-made contextmenu event has no pointer position: open under the row.
+        if (e.clientX === 0 && e.clientY === 0) {
+          e.preventDefault()
+          openMenuAt(e.currentTarget, menu(), title, true)
+        } else openContextMenu(e, menu(), title)
+      }}
+      onKeyDown={(e) => {
+        if (!isMenuKey(e)) return
+        e.preventDefault()
+        openMenuAt(e.currentTarget, menu(), title, true)
+      }}
       className={`group relative flex items-center rounded-md transition-colors ${
         stackIncoming ? 'bg-accent-soft ring-2 ring-accent-line' : ''
       } ${isDragging ? 'opacity-30' : ''}`}
@@ -138,6 +169,7 @@ function SortableSpaceRow({ space, active, onClick }: SortableSpaceProps) {
       >
         <span
           onDoubleClick={openEditEmoji}
+          data-space-tile
           className="text-base leading-none cursor-pointer select-none"
           title="Double-click to change icon"
         >
@@ -151,40 +183,37 @@ function SortableSpaceRow({ space, active, onClick }: SortableSpaceProps) {
           {space.name || 'Untitled'}
         </span>
       </button>
-      <div className="relative">
-        <button
-          onClick={(e) => {
-            e.stopPropagation()
-            setMenuOpen((v) => !v)
-          }}
-          className="rounded p-0.5 text-faint opacity-0 group-hover:opacity-100 hover:bg-hover hover:text-fg"
-          aria-label="Space options"
-        >
-          <MoreVertical className="h-3.5 w-3.5" />
-        </button>
-        {menuOpen && (
-          <div
-            className="absolute right-0 top-6 z-30 w-32 overflow-hidden rounded-md border border-line bg-raised shadow-md"
-            onMouseLeave={() => setMenuOpen(false)}
-          >
-            <button
-              onClick={openEdit}
-              className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-fg hover:bg-hover"
-            >
-              <Pencil className="h-3.5 w-3.5" />
-              Edit
-            </button>
-            <button
-              onClick={openDelete}
-              className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-danger hover:bg-danger-soft"
-            >
-              <Trash2 className="h-3.5 w-3.5" />
-              Delete
-            </button>
-          </div>
-        )}
-      </div>
+      <button
+        onClick={(e) => {
+          e.stopPropagation()
+          openMenuAt(e.currentTarget, menu(), title, e.detail === 0)
+        }}
+        className="rounded p-0.5 text-faint opacity-0 group-hover:opacity-100 hover:bg-hover hover:text-fg focus-visible:opacity-100"
+        aria-label="Space options"
+        aria-haspopup="menu"
+      >
+        <MoreVertical className="h-3.5 w-3.5" />
+      </button>
     </div>
+  )
+}
+
+/** A space in the folded sidebar: its emoji, on its colour when it has one. */
+function RailSpace({ space, index, active, onClick }: { space: Space; index: number; active: boolean; onClick: () => void }) {
+  const color = useMetaFor(space.id).color
+  const colored = tint(color)
+  return (
+    <button
+      onClick={onClick}
+      onContextMenu={(e) => openContextMenu(e, spaceMenu(space, color), space.name || 'Untitled')}
+      title={index < 9 ? `${space.name} (${index + 1})` : space.name}
+      data-rail-space
+      data-color={colored['data-color']}
+      style={colored.style}
+      className={`flex h-8 w-8 items-center justify-center rounded-md text-base ${active ? 'bg-selected' : 'hover:bg-hover'}`}
+    >
+      {space.emoji}
+    </button>
   )
 }
 
@@ -210,8 +239,8 @@ export function Sidebar() {
     const q = search.trim().toLowerCase()
     return activeSpace.stacks.filter(
       (st) =>
-        st.title.toLowerCase().includes(q) ||
-        st.bookmarks.some(
+        walkStacks([st]).some((x) => x.title.toLowerCase().includes(q)) ||
+        stackLinks(st).some(
           (b) => b.title.toLowerCase().includes(q) || b.url.toLowerCase().includes(q),
         ),
     )
@@ -278,16 +307,7 @@ export function Sidebar() {
         </button>
         <div className="mt-2 flex flex-col gap-1.5">
           {spaces.map((s, i) => (
-            <button
-              key={s.id}
-              onClick={() => goToSpace(s.id)}
-              title={i < 9 ? `${s.name} (${i + 1})` : s.name}
-              className={`flex h-8 w-8 items-center justify-center rounded-md text-base ${
-                s.id === selectedId ? 'bg-selected' : 'hover:bg-hover'
-              }`}
-            >
-              {s.emoji}
-            </button>
+            <RailSpace key={s.id} space={s} index={i} active={s.id === selectedId} onClick={() => goToSpace(s.id)} />
           ))}
         </div>
       </aside>

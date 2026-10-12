@@ -27,15 +27,17 @@
   // Fork: style, corners, font and motion, already worked out by the store (bootMirror().attrs).
   var attrs = a.attrs && typeof a.attrs === 'object' ? a.attrs : {}
   for (var k in attrs) {
-    if (/^data-[a-z-]+$/.test(k) && typeof attrs[k] === 'string') root.setAttribute(k, attrs[k])
+    if (/^data-[a-z0-9-]+$/.test(k) && typeof attrs[k] === 'string') root.setAttribute(k, attrs[k])
   }
-  // Backgrounds belong to the board only, never the toolbar popup.
-  if (root.hasAttribute('data-board')) {
+  // Backgrounds belong to the board only, never the toolbar popup. The Y2K strengths
+  // (--sb-y2k-*) style panels, so they apply everywhere.
+  var vars = a.vars && typeof a.vars === 'object' ? a.vars : {}
+  var board = root.hasAttribute('data-board')
+  if (board) {
     root.setAttribute('data-bg', a.bg === 'gradient' || a.bg === 'image' ? a.bg : 'solid')
     root.setAttribute('data-gradient', a.gradient >= 1 && a.gradient <= 9 ? String(a.gradient) : '1')
-    var vars = a.vars && typeof a.vars === 'object' ? a.vars : {}
-    for (var v in vars) {
-      if (/^--sb-[a-z-]+$/.test(v) && typeof vars[v] === 'string') root.style.setProperty(v, vars[v])
-    }
+  }
+  for (var v in vars) {
+    if (/^--sb-[a-z0-9-]+$/.test(v) && typeof vars[v] === 'string' && (board || v.indexOf('--sb-y2k-') === 0)) root.style.setProperty(v, vars[v])
   }
 })()

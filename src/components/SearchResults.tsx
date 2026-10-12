@@ -30,7 +30,7 @@ export function SearchResults({ query }: { query: string }) {
       <div className="no-scrollbar flex-1 overflow-y-auto px-8 pb-8 compact:px-6">
         {total === 0 ? (
           <p className="on-wallpaper max-w-md text-sm text-muted">
-            Search looks at link titles, addresses, and stack and space names.
+            Search looks at link titles, addresses, and stack, sub-stack and space names.
           </p>
         ) : (
           groups.map((g, gi) => (
@@ -42,8 +42,12 @@ export function SearchResults({ query }: { query: string }) {
               >
                 <span className="text-sm leading-none">{g.space.emoji}</span>
                 {g.space.name}
-                <ChevronRight className="h-3 w-3 text-ghost" />
-                {g.stack.title}
+                {[...g.path, g.stack].map((st) => (
+                  <span key={st.id} className="contents">
+                    <ChevronRight className="h-3 w-3 text-ghost" />
+                    {st.title}
+                  </span>
+                ))}
               </button>
               <div className="grid grid-cols-[repeat(auto-fill,minmax(240px,1fr))] gap-1.5 compact:grid-cols-[repeat(auto-fill,minmax(212px,1fr))] compact:gap-1">
                 {g.hits.map((b, i) => (

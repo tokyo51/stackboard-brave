@@ -1,0 +1,320 @@
+/* Items (0.8.0): per-item design (right-click a space, stack, sub-stack or link: colour, layout,
+ * width, folded), sub-stacks, and the drop targets for nesting.
+ *
+ * Imported last in index.css and unlayered, so it wins over the Tailwind utilities and, at equal
+ * specificity, over styles.css, native.css and polish.css. A colour arrives as data-color plus
+ * --item-bg / --item-fg, the active palette's tint pair (tint() in BookmarkIcon.tsx), so it suits
+ * every palette and style. Real text on a tint stays in --sb-strong / --sb-fg / --sb-soft:
+ * tests/tree.test.ts checks those stay AA on --item-pill and --item-wash in every palette, so keep
+ * the two mix amounts below in step with it.
+ *
+ * Never a transform on [data-surface="card"] or [data-surface="stack"] here: dnd-kit moves those
+ * with inline transforms while dragging.
+ */
+
+[data-color] {
+  /* The header pill: strong enough to read as the colour at a glance. */
+  --item-pill: color-mix(in srgb, var(--item-bg) 80%, var(--sb-card));
+  /* The soft wash over a stack's pane or well, and a coloured link's hover: the pastel tint in
+     light schemes; in dark ones the tint bg is too close to the panes to show, so a little of
+     the bright tint fg instead. */
+  --item-tone: var(--item-bg);
+  --item-tone-amt: 32%;
+  --item-wash: color-mix(in srgb, var(--item-tone) var(--item-tone-amt), transparent);
+  --item-hover: color-mix(in srgb, var(--item-tone) var(--item-tone-amt), var(--sb-card));
+  /* Secondary text one step stronger, so it keeps AA on the wash. */
+  --sb-muted: var(--sb-soft);
+}
+:root[data-scheme="dark"] [data-color] {
+  --item-tone: var(--item-fg);
+  --item-tone-amt: 8%;
+}
+
+/* ---------- Stack and sub-stack headers ---------- */
+
+/* The title sits in a pill of its colour. The pill reaches left past the text, so the title
+   itself stays on the inset line every stack and link icon shares (polish.css). */
+:root :is([data-surface="stack"], [data-substack])[data-color] > :is([data-stack-head], [data-sub-head]) [data-pill] {
+  padding-inline: 0.5625rem;
+  margin-inline-start: -0.5625rem;
+  border-radius: var(--item-pill-radius, 999px);
+  background-color: var(--item-pill);
+  color: var(--sb-strong);
+}
+:root [data-substack][data-color] > [data-sub-head] [data-pill] {
+  padding-inline: 0.4375rem;
+  margin-inline-start: 0;
+  line-height: 1.25rem;
+}
+[data-substack][data-color] > [data-sub-head] [data-chevron] {
+  color: var(--item-fg);
+}
+:root[data-radius="sharp"] {
+  --item-pill-radius: 0;
+}
+/* Terminal: the pill sits after the "~/" prompt instead of over it. */
+:root[data-style="terminal"] [data-surface="stack"][data-color] > [data-stack-head] [data-pill] {
+  margin-inline-start: 0.25rem;
+}
+
+/* Folding: the chevron turns, the header keeps its place, the body closes up. */
+[data-chevron] svg {
+  transition: rotate calc(200ms * var(--sb-tempo)) var(--sb-ease-out);
+}
+[data-surface="stack"][data-collapsed] > [data-stack-head] [data-chevron] svg,
+[data-substack][data-collapsed] > [data-sub-head] [data-chevron] svg {
+  rotate: -90deg;
+}
+[data-surface="stack"] > [data-stack-head] {
+  transition: margin-bottom calc(240ms * var(--sb-tempo)) var(--sb-ease-out);
+}
+[data-surface="stack"][data-collapsed] > [data-stack-head] {
+  margin-bottom: 0;
+}
+
+/* ---------- Folding body ----------
+   A one-row grid that goes from 1fr to 0fr, so the height animates without measuring. While
+   closed the content is clipped and, once the fold has finished, hidden, so its links leave the
+   tab order. Opening holds the clip for the length of the unfold (sb-unfold), then lets focus
+   rings and hover shadows show again. */
+[data-collapse] {
+  display: grid;
+  grid-template-rows: 1fr;
+  transition:
+    grid-template-rows calc(240ms * var(--sb-tempo)) var(--sb-ease-out),
+    padding calc(240ms * var(--sb-tempo)) var(--sb-ease-out),
+    border-width calc(240ms * var(--sb-tempo)) var(--sb-ease-out),
+    background-color 120ms ease,
+    border-color 120ms ease;
+}
+[data-collapse] > * {
+  min-width: 0;
+  min-height: 0;
+}
+[data-collapse="open"] > * {
+  animation: sb-unfold calc(240ms * var(--sb-tempo)) linear;
+}
+[data-collapse="closed"] {
+  grid-template-rows: 0fr;
+}
+[data-collapse="closed"] > * {
+  overflow: hidden;
+  visibility: hidden;
+  transition: visibility 0s linear calc(240ms * var(--sb-tempo));
+}
+[data-stack-list][data-collapse="closed"] {
+  padding-block: 0;
+  border-block-width: 0;
+}
+@keyframes sb-unfold {
+  from,
+  to {
+    overflow: hidden;
+  }
+}
+:root[data-motion="off"] :is([data-collapse], [data-collapse] > *, [data-chevron] svg, [data-surface="stack"] > [data-stack-head]) {
+  transition: none;
+  animation: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  :is([data-collapse], [data-collapse] > *, [data-chevron] svg, [data-surface="stack"] > [data-stack-head]) {
+    transition: none !important;
+    animation: none !important;
+  }
+}
+
+/* ---------- Coloured stacks: a soft wash ----------
+   On the flat board the link well is the stack's surface, so the wash goes there. Every other
+   style draws the stack as a pane: the wash goes on the pane as an extra background layer, over
+   whatever the style paints (Aero keeps its gloss on top). */
+[data-surface="stack"][data-color] > [data-stack-list]:not([data-over]) {
+  background-color: var(--item-wash);
+}
+:root:not([data-style="flat"]) [data-surface="stack"][data-color] {
+  background-image: linear-gradient(var(--item-wash), var(--item-wash));
+}
+:root:not([data-style="flat"]) [data-surface="stack"][data-color] > [data-stack-list]:not([data-over]) {
+  background-color: transparent;
+}
+:root[data-style="aero"] [data-surface="stack"][data-color] {
+  background-image:
+    linear-gradient(180deg, var(--sb-gloss) 0%, var(--sb-gloss-soft) 46%, transparent 47%),
+    linear-gradient(var(--item-wash), var(--item-wash));
+}
+/* Retro: the title bar takes the colour (the accent title bar is the default). */
+:root[data-style="retro"] [data-surface="stack"][data-color] > [data-stack-head] {
+  background: var(--item-pill);
+}
+:root[data-style="retro"] [data-surface="stack"][data-color] > [data-stack-head] :is(h3, svg, button) {
+  color: var(--sb-strong);
+}
+:root[data-style="retro"] [data-surface="stack"][data-color] > [data-stack-head] [data-pill] {
+  margin: 0;
+  padding: 0;
+  background: none;
+}
+/* Terminal: the dashed frame takes the colour too. */
+:root[data-style="terminal"] [data-surface="stack"][data-color] {
+  border-color: color-mix(in srgb, var(--item-fg) 60%, transparent);
+}
+
+/* ---------- Sub-stacks ----------
+   Sections inside their stack: a small header whose chevron starts on the inset line (where
+   the stack's link icons start), then the section's links and its own sub-stacks, stepped in by
+   1.25rem so their icons start under its title. Each level steps in once more. */
+[data-substack] {
+  margin-top: 0.625rem;
+}
+[data-substacks] > div > [data-substack]:first-child {
+  margin-top: 0.75rem;
+}
+[data-sub-head] {
+  min-height: 1.5rem;
+  padding-inline: calc(var(--sb-inset) - 0.25rem) 0.25rem;
+  margin-bottom: 0.25rem;
+  border-radius: var(--radius-md);
+}
+[data-substack] > [data-collapse] > div {
+  padding-inline-start: 1.25rem;
+}
+[data-sub-list] {
+  padding: var(--sb-well-pad);
+  background-color: var(--sb-well);
+}
+/* The pane styles draw no inner wells (polish.css item 16), sub-stacks included. */
+:root:is([data-style="glass"], [data-style="aero"], [data-style="floating"], [data-style="apple"], [data-style="brave"], [data-style="chrome"], [data-style="aqua"]) [data-sub-list]:not([data-over]) {
+  background-color: transparent;
+}
+[data-bg="image"] [data-sub-list]:not([data-over]) {
+  background-color: transparent;
+}
+/* Flat: inside a coloured stack the sub-stack wells take its wash, so the colour reads as one. */
+:root[data-style="flat"] [data-surface="stack"][data-color] [data-sub-list]:not([data-over]) {
+  background-color: var(--item-wash);
+}
+/* A coloured sub-stack is a small tinted pane of its own: header, links and its sub-stacks. */
+[data-substack][data-color] {
+  padding-block: 0.125rem 0.25rem;
+  border-radius: var(--radius-xl);
+  background-color: var(--item-wash);
+}
+:root [data-surface="stack"] [data-substack][data-color] [data-sub-list]:not([data-over]) {
+  background-color: transparent;
+}
+:root[data-style="terminal"] [data-substack][data-color] {
+  border-radius: 0;
+}
+/* Terminal: a sub-stack is a subdirectory. */
+:root[data-style="terminal"] [data-sub-head] h4::before {
+  content: "./";
+  color: var(--sb-accent-text);
+}
+:root[data-style="retro"] [data-sub-head] {
+  border-radius: 0;
+}
+/* A stack whose links all live in sub-stacks: its own well shrinks to the quiet Add row. */
+[data-stack-list][data-parent-only]:not([data-over]) {
+  background-color: transparent;
+  padding-block: 0;
+}
+
+/* ---------- Drop inside ----------
+   A dragged stack (after a short rest on a header), sub-stack or link lights the header it
+   would go into, with a label saying so; the header's own tools step aside. */
+[data-drop-label] {
+  display: none;
+}
+[data-drop-into] > :is([data-stack-head], [data-sub-head]) {
+  border-radius: var(--radius-lg);
+  background-color: var(--sb-accent-soft);
+  box-shadow: inset 0 0 0 2px var(--sb-accent-line);
+}
+[data-drop-into] > :is([data-stack-head], [data-sub-head]) [data-drop-label] {
+  display: inline-block;
+  background-color: var(--sb-accent);
+  color: var(--sb-on-accent);
+}
+[data-drop-into] > :is([data-stack-head], [data-sub-head]) button {
+  display: none;
+}
+/* Retro's title bar stays a title bar; the label shows the target. */
+:root[data-style="retro"] [data-surface="stack"][data-drop-into] > [data-stack-head] {
+  box-shadow: inset 0 0 0 2px var(--sb-on-accent);
+}
+/* A sub-stack on its way out of its stack: the board it will land on. */
+[data-stack-grid][data-unnest] {
+  border-radius: var(--radius-2xl);
+  outline: 2px dashed var(--sb-accent-line);
+  outline-offset: 10px;
+}
+
+/* ---------- Width ---------- */
+[data-surface="stack"][data-span="2"] {
+  grid-column: span 2;
+}
+/* One column only (a narrow window): a wide stack would push a second, empty one in. */
+@media (max-width: 820px) {
+  [data-surface="stack"][data-span="2"] {
+    grid-column: auto;
+  }
+}
+
+/* ---------- Links ---------- */
+
+/* A coloured link: its icon tile takes the colour (favicon, emoji or letter), and its hover is
+   a soft wash of it. Terminal and Retro keep their inverted hover rows. */
+[data-surface="card"][data-color] [data-tile] {
+  --sb-mono-bg: var(--item-bg);
+  --sb-mono-fg: var(--item-fg);
+  --tw-ring-color: color-mix(in srgb, var(--item-fg) 22%, transparent);
+  background-color: var(--item-bg);
+}
+:root:not([data-style="terminal"], [data-style="retro"]) [data-surface="card"][data-color]:not([data-drop-slot]):hover {
+  background-color: var(--item-hover);
+  border-color: color-mix(in srgb, var(--item-fg) 18%, transparent);
+}
+
+/* Tiles: icons on their own, no row box, like Brave's top sites. The cell lights on hover. */
+[data-surface="card"][data-variant="tile"]:not([data-drop-slot]) {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+}
+[data-surface="card"][data-variant="tile"]:not([data-drop-slot]):hover {
+  background-color: var(--sb-hover);
+}
+[data-surface="card"][data-variant="tile"] [data-tile] {
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--sb-shade) 12%, transparent);
+}
+:root[data-style="apple"] [data-surface="card"][data-variant="tile"]::before {
+  content: none;
+}
+[data-density="spacious"] [data-surface="card"]:is([data-variant="tile"], [data-variant="compact"]) > a {
+  padding-top: revert-layer;
+  padding-bottom: revert-layer;
+}
+/* Compact rows: Apple's hairline starts after the smaller icon. */
+:root[data-style="apple"] [data-surface="card"] + [data-surface="card"][data-variant="compact"]::before {
+  left: 34px;
+}
+
+/* ---------- Spaces ----------
+   A coloured space sits on a tile of its colour in the sidebar. The tile reaches out past the
+   emoji instead of pushing the name over, so every row keeps one left edge. */
+[data-space-row][data-color] [data-space-tile] {
+  display: inline-flex;
+  width: 1.375rem;
+  height: 1.375rem;
+  margin: -0.1875rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-md);
+  background-color: var(--item-bg);
+  font-size: 0.8125rem;
+}
+[data-rail-space][data-color] {
+  background-color: var(--item-pill);
+}
+[data-rail-space][data-color].bg-selected {
+  box-shadow: 0 0 0 2px var(--item-fg);
+}

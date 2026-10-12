@@ -64,8 +64,9 @@ function writeMirror(key: string, value: unknown): void {
   }
 }
 
-export type WidgetPatch = Partial<Omit<WidgetSettings, 'enabled' | 'weather' | 'countdown' | 'pomodoro'>> & {
+export type WidgetPatch = Partial<Omit<WidgetSettings, 'enabled' | 'weather' | 'countdown' | 'pomodoro' | 'clock'>> & {
   enabled?: Partial<Record<WidgetId, boolean>>
+  clock?: Partial<WidgetSettings['clock']>
   weather?: Partial<WidgetSettings['weather']>
   countdown?: Partial<WidgetSettings['countdown']>
   pomodoro?: Partial<WidgetSettings['pomodoro']>
@@ -79,6 +80,7 @@ export function mergeWidgets(s: WidgetSettings, patch: WidgetPatch): WidgetSetti
     weather: { ...s.weather, ...patch.weather },
     countdown: { ...s.countdown, ...patch.countdown },
     pomodoro: { ...s.pomodoro, ...patch.pomodoro },
+    clock: { ...s.clock, ...patch.clock },
   })
 }
 

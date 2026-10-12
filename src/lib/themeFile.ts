@@ -1,7 +1,7 @@
 import { parseAppearance, type Appearance, type AppearancePatch } from './appearance'
 
 // Fork: a look as a file (Settings > Look > Share your theme). Everything visual travels:
-// palette, mode, style, corners, font, density, motion and the gradient choice. A wallpaper
+// palette, mode, style, corners, font, density, motion, the Y2K options and the gradient choice. A wallpaper
 // picture stays on its device, so an imported "image" background falls back to a gradient.
 
 export interface ThemeFile {

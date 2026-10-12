@@ -1,6 +1,6 @@
 // End-to-end check of the built Stackboard extension in Chrome for Testing.
 // Loads dist/ unpacked into a throwaway profile, seeds bookmarks through chrome.bookmarks,
-// and drives the new-tab page with real mouse and keyboard input. 103 checks, ~3 min.
+// and drives the new-tab page with real mouse and keyboard input. 118 checks, ~3 min.
 //
 // Setup (branded Chrome ignores --load-extension, so use Chrome for Testing, or Brave via the CDP pipe):
 //   npm i puppeteer-core@24 @puppeteer/browsers@2
@@ -327,13 +327,208 @@ try {
   await ntp.keyboard.press('Escape')
   await sleep(200)
 
+  // ---------- 0.8.0: sub-stacks, nesting, folding, colours, layouts, right-click menus ----------
+  const ids8 = await control.evaluate(async () => {
+    const folder = async (title) => (await chrome.bookmarks.search({ title })).find((x) => !x.url)
+    const japan = await folder('Japan')
+    const big = await folder('Big')
+    const later = await folder('Later')
+    const tokyo = await chrome.bookmarks.create({ parentId: japan.id, title: 'Tokyo' })
+    await chrome.bookmarks.create({ parentId: tokyo.id, title: 'Shibuya Sky', url: 'https://shibuya-sky.example.com/' })
+    return { japan: japan.id, big: big.id, later: later.id, tokyo: tokyo.id }
+  })
+  await sleep(700)
+  const nested = await ntp.evaluate((id) => {
+    const sub = document.querySelector(`#stack-${id} [data-substack]`)
+    return sub ? { title: sub.querySelector('h4')?.textContent, links: [...sub.querySelectorAll('a[href^="http"]')].map((a) => a.title.split('\n')[0]) } : null
+  }, ids8.japan)
+  check('a folder inside a stack shows as a sub-stack with its links', nested?.title === 'Tokyo' && nested.links.join() === 'Shibuya Sky', JSON.stringify(nested))
+
+  await ntp.mouse.click(120, 860)
+  await ntp.keyboard.press('/')
+  await ntp.keyboard.type('shibuya')
+  await sleep(300)
+  const subSearch = await ntp.evaluate(() => ({
+    hits: [...document.querySelectorAll('main section a')].map((a) => a.querySelector('span.min-w-0')?.textContent),
+    where: document.querySelector('main section button')?.textContent ?? '',
+  }))
+  check('search finds links in sub-stacks', subSearch.hits.includes('Shibuya Sky') && subSearch.where.includes('Japan') && subSearch.where.includes('Tokyo'), JSON.stringify(subSearch))
+  await ntp.keyboard.press('Escape')
+  await sleep(300)
+
+  // Another device (or the bookmark manager) moves a folder into a stack: it shows up nested.
+  await control.evaluate((ids) => chrome.bookmarks.move(ids.later, { parentId: ids.japan }), ids8)
+  await sleep(700)
+  const movedIn = await ntp.evaluate((ids) => ({
+    nested: !!document.querySelector(`#stack-${ids.japan} [data-substack]#stack-${ids.later}`),
+    topLevel: !!document.querySelector(`[data-surface="stack"]#stack-${ids.later}`),
+  }), ids8)
+  check('a folder moved into a stack shows up nested in it', movedIn.nested && !movedIn.topLevel, JSON.stringify(movedIn))
+
+  // Drag the sub-stack out onto the board (the New stack tile): it is a stack of its own again.
+  const centre = (page, sel, dx) =>
+    page.evaluate((sel, dx) => {
+      const r = document.querySelector(sel).getBoundingClientRect()
+      return { x: dx === undefined ? r.x + r.width / 2 : r.x + dx, y: r.y + r.height / 2 }
+    }, sel, dx)
+  const dragTo = async (from, to, rest) => {
+    await ntp.mouse.move(from.x, from.y)
+    await ntp.mouse.down()
+    for (let i = 1; i <= 14; i++) await ntp.mouse.move(from.x + ((to.x - from.x) * i) / 14, from.y + ((to.y - from.y) * i) / 14)
+    await sleep(rest)
+  }
+  await dragTo(await centre(ntp, `#stack-${ids8.later} > [data-sub-head]`, 40), await centre(ntp, '[data-add-stack]'), 250)
+  const unnestLit = await ntp.evaluate(() => document.querySelector('[data-stack-grid]')?.hasAttribute('data-unnest'))
+  await ntp.mouse.up()
+  await sleep(800)
+  const outParent = await control.evaluate(async (ids) => (await chrome.bookmarks.get(ids.later))[0].parentId, ids8)
+  const outTop = await ntp.evaluate((id) => !!document.querySelector(`[data-surface="stack"]#stack-${id}`), ids8.later)
+  check('dragging a sub-stack onto the board makes it a stack again', unnestLit && outParent !== ids8.japan && outTop, `lit=${unnestLit} top=${outTop}`)
+
+  // And back in: rest a dragged stack on another stack's header until it lights, then let go.
+  await dragTo(await centre(ntp, `#stack-${ids8.later} > [data-stack-head]`, 40), await centre(ntp, `#stack-${ids8.japan} > [data-stack-head]`, 60), 750)
+  const nestLit = await ntp.evaluate((id) => document.querySelector(`#stack-${id}`)?.hasAttribute('data-drop-into'), ids8.japan)
+  await ntp.mouse.up()
+  await sleep(800)
+  const inParent = await control.evaluate(async (ids) => (await chrome.bookmarks.get(ids.later))[0].parentId, ids8)
+  check('resting a dragged stack on a header lights it and drops the stack inside', nestLit && inParent === ids8.japan, `lit=${nestLit} parent=${inParent === ids8.japan}`)
+
+  // Fold with the chevron; a new tab opens with it still folded.
+  await ntp.evaluate((id) => document.querySelector(`#stack-${id} > [data-stack-head] [data-chevron]`).click(), ids8.big)
+  await sleep(600)
+  const fold = (page) =>
+    page.evaluate((id) => {
+      const col = document.querySelector(`#stack-${id}`)
+      const list = col?.querySelector(':scope > [data-stack-list]')
+      return col
+        ? {
+            folded: col.hasAttribute('data-collapsed'),
+            height: Math.round(list.getBoundingClientRect().height),
+            hidden: getComputedStyle(list.firstElementChild).visibility === 'hidden',
+            expanded: col.querySelector('[data-chevron]').getAttribute('aria-expanded'),
+          }
+        : null
+    }, ids8.big)
+  const folded = await fold(ntp)
+  check('the chevron folds a stack to its header', folded?.folded && folded.height === 0 && folded.hidden && folded.expanded === 'false', JSON.stringify(folded))
+  const ntpF = await openNtp()
+  const foldedAfter = await fold(ntpF)
+  check('a folded stack stays folded on a new tab', foldedAfter?.folded && foldedAfter.height === 0 && foldedAfter.hidden, JSON.stringify(foldedAfter))
+  await ntpF.close()
+  await ntp.bringToFront()
+  await ntp.evaluate((id) => document.querySelector(`#stack-${id} > [data-stack-head] [data-chevron]`).click(), ids8.big)
+  await sleep(500)
+
+  // The space header folds every stack and sub-stack at once, then opens them all again.
+  const foldAll = () =>
+    ntp.evaluate(async () => {
+      document.querySelector('[data-collapse-all]').click()
+      await new Promise((r) => setTimeout(r, 400))
+      const all = [...document.querySelectorAll('main :is([data-surface="stack"], [data-substack])')]
+      return { all: all.length, folded: all.filter((s) => s.hasAttribute('data-collapsed')).length, label: document.querySelector('[data-collapse-all]').getAttribute('aria-label') }
+    })
+  const allFolded = await foldAll()
+  const allOpen = await foldAll()
+  check(
+    'Collapse all folds every stack in the space, Expand all opens them again',
+    allFolded.all >= 4 && allFolded.folded === allFolded.all && allFolded.label === 'Expand all stacks' && allOpen.folded === 0 && allOpen.label === 'Collapse all stacks',
+    JSON.stringify({ allFolded, allOpen }),
+  )
+
+  // Right-click a stack header: the stack's menu; a colour swatch colours the stack.
+  const rightClick = async (point) => {
+    await ntp.mouse.click(point.x, point.y, { button: 'right' })
+    await sleep(300)
+  }
+  const menuItems = () => ntp.evaluate(() => [...document.querySelectorAll('[data-context-menu] [role="menuitem"]')].map((b) => b.textContent.trim()))
+  await rightClick(await centre(ntp, `#stack-${ids8.japan} > [data-stack-head] h3`, 20))
+  const stackItems = await menuItems()
+  check(
+    'right-click a stack header opens the stack menu',
+    ['Rename', 'Collapse', 'New sub-stack', 'Move into stack…', 'Move to space…', 'Open all as tabs', 'Delete'].every((l) => stackItems.some((t) => t.startsWith(l))) &&
+      (await ntp.evaluate(() => ['Layout', 'Width'].every((l) => !!document.querySelector(`[data-context-menu] [role="radiogroup"][aria-label="${l}"]`)))),
+    JSON.stringify(stackItems),
+  )
+  await ntp.evaluate(() => document.querySelector('[data-context-menu] [data-color-option="green"]').click())
+  await sleep(300)
+  const tinted = await ntp.evaluate((id) => {
+    const col = document.querySelector(`#stack-${id}`)
+    return { color: col.dataset.color ?? null, bg: col.style.getPropertyValue('--item-bg'), pill: getComputedStyle(col.querySelector('[data-pill]')).backgroundColor }
+  }, ids8.japan)
+  check('a colour from the right-click menu sets data-color on the stack', tinted.color === 'green' && tinted.bg.includes('--sb-tint-2-bg') && tinted.pill !== 'rgba(0, 0, 0, 0)', JSON.stringify(tinted))
+
+  // Layout > Tiles turns the links into 56px tiles; back to List after.
+  const pickLayout = async (label) => {
+    await rightClick(await centre(ntp, `#stack-${ids8.japan} > [data-stack-head] h3`, 20))
+    await ntp.evaluate((label) => [...document.querySelectorAll('[data-context-menu] [aria-label="Layout"] [role="radio"]')].find((b) => b.textContent === label).click(), label)
+    await sleep(400)
+  }
+  await pickLayout('Tiles')
+  const tiles = await ntp.evaluate((id) => {
+    const own = [...document.querySelectorAll(`#stack-${id} > [data-stack-list] [data-surface="card"]`)]
+    const tile = own[0]?.querySelector('[data-tile]')?.getBoundingClientRect()
+    return { cards: own.length, tiles: own.filter((c) => c.dataset.variant === 'tile').length, size: tile ? Math.round(tile.width) : 0 }
+  }, ids8.japan)
+  await ntp.screenshot({ path: path.join(SHOTS, '09-tiles.png') })
+  check('Layout > Tiles renders the links as tiles', tiles.cards === 4 && tiles.tiles === 4 && tiles.size === 56, JSON.stringify(tiles))
+  await pickLayout('List')
+
+  // Right-click a link: its own menu. Shift+F10 on a focused link opens the same one.
+  const githubCard = await ntp.evaluate(() => {
+    const r = [...document.querySelectorAll('a[href^="http"]')].find((a) => a.title.startsWith('GitHub')).getBoundingClientRect()
+    return { x: r.x + 60, y: r.y + r.height / 2 }
+  })
+  await rightClick(githubCard)
+  const linkMenu = await ntp.evaluate(() => ({
+    title: document.querySelector('[data-context-menu] p')?.textContent ?? null,
+    swatches: document.querySelectorAll('[data-context-menu] [data-color-option]').length,
+  }))
+  const linkItems = await menuItems()
+  check(
+    'right-click on a bookmark opens its menu',
+    linkMenu.title === 'GitHub' && linkMenu.swatches === 11 && ['Open in new tab', 'Edit', 'Move to stack…', 'Copy link', 'Delete'].every((l) => linkItems.includes(l)),
+    JSON.stringify({ ...linkMenu, linkItems }),
+  )
+  await ntp.keyboard.press('Escape')
+  await sleep(200)
+  await ntp.evaluate(() => [...document.querySelectorAll('a[href^="http"]')].find((a) => a.title.startsWith('GitHub')).focus())
+  await ntp.keyboard.down('Shift')
+  await ntp.keyboard.press('F10')
+  await ntp.keyboard.up('Shift')
+  await sleep(300)
+  const kbMenu = await ntp.evaluate(() => ({ title: document.querySelector('[data-context-menu] p')?.textContent ?? null, focusInMenu: !!document.activeElement?.closest('[data-context-menu]') }))
+  check('Shift+F10 on a focused link opens the same menu', kbMenu.title === 'GitHub' && kbMenu.focusInMenu, JSON.stringify(kbMenu))
+  await ntp.keyboard.press('Escape')
+  await sleep(200)
+
+  // Delete a coloured stack with a coloured sub-stack, then Undo: all of it comes back.
+  await rightClick(await centre(ntp, `#stack-${ids8.tokyo} > [data-sub-head] h4`, 10))
+  await ntp.evaluate(() => document.querySelector('[data-context-menu] [data-color-option="pink"]').click())
+  await sleep(300)
+  await ntp.evaluate((id) => document.querySelector(`#stack-${id} button[aria-label="Stack options"]`).click(), ids8.japan)
+  await sleep(200)
+  await ntp.evaluate(() => [...document.querySelectorAll('[data-context-menu] button')].find((b) => b.textContent.trim() === 'Delete').click())
+  await sleep(700)
+  const toast8 = await ntp.evaluate(() => document.querySelector('.toast')?.textContent ?? '')
+  await ntp.evaluate(() => [...document.querySelectorAll('.toast button')].find((b) => b.textContent.includes('Undo')).click())
+  await sleep(1200)
+  const back8 = await ntp.evaluate(() => {
+    const col = [...document.querySelectorAll('[data-surface="stack"]')].find((c) => c.querySelector('h3')?.textContent === 'Japan')
+    const sub = col && [...col.querySelectorAll('[data-substack]')].find((s) => s.querySelector('h4')?.textContent === 'Tokyo')
+    return col ? { color: col.dataset.color ?? null, sub: sub?.dataset.color ?? null, link: !!sub?.querySelector('a[title^="Shibuya Sky"]'), subs: col.querySelectorAll('[data-substack]').length } : null
+  })
+  check('deleting a stack counts its sub-stacks', toast8.includes('2 sub-stacks, 6 links'), toast8)
+  check('undo brings a stack back with its sub-stacks and their colours', back8?.color === 'green' && back8.sub === 'pink' && back8.link && back8.subs === 2, JSON.stringify(back8))
+  await ntp.screenshot({ path: path.join(SHOTS, '10-nested.png') })
+
   // ---------- space delete via modal, then Undo; remembered space ----------
   await ntp.evaluate(() => {
     const row = [...document.querySelectorAll('aside .group')].find((r) => r.textContent.includes('Personal'))
     row.querySelector('button[aria-label="Space options"]').click()
   })
   await sleep(150)
-  await ntp.evaluate(() => [...document.querySelectorAll('aside button')].find((b) => b.textContent.trim() === 'Delete').click())
+  // The space menu is the shared right-click menu now (0.8.0), drawn outside the sidebar.
+  await ntp.evaluate(() => [...document.querySelectorAll('aside button, [data-context-menu] button')].find((b) => b.textContent.trim() === 'Delete').click())
   await sleep(200)
   await ntp.evaluate(() => [...document.querySelectorAll('.fixed button')].find((b) => b.textContent.trim() === 'Delete').click())
   await sleep(700)

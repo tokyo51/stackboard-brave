@@ -5,10 +5,12 @@ import {
   deleteBookmark,
   deleteSpace,
   deleteStack,
+  locateStack,
   readTree,
   restoreSnapshot,
   snapshotNode,
 } from '../lib/bookmarks'
+import { parseItemMeta, useItemMeta, type ItemMeta } from './useItemMeta'
 import type { OpenTabIndex } from '../lib/openTabs'
 import { prefs } from '../lib/prefs'
 import { recordError } from '../lib/diagnostics'
@@ -17,9 +19,12 @@ type ModalState =
   | { kind: 'none' }
   | { kind: 'space-add' }
   | { kind: 'space-edit'; id: string; name: string; emoji: string; focusField?: 'emoji' | 'name' }
-  | { kind: 'stack-add'; spaceId: string }
+  /** With parentStackId it makes a sub-stack inside that stack (0.8.0). */
+  | { kind: 'stack-add'; spaceId: string; parentStackId?: string; parentTitle?: string }
   | { kind: 'stack-edit'; id: string; title: string }
-  | { kind: 'stack-move'; id: string; title: string; currentSpaceId: string }
+  /** to 'space' (the default) moves it to a space's top level; to 'stack' nests it in a stack. */
+  | { kind: 'stack-move'; id: string; title: string; currentSpaceId: string; to?: 'space' | 'stack' }
+  | { kind: 'bookmark-move'; id: string; title: string; stackId: string }
   | { kind: 'bookmark-add'; stackId: string }
   | { kind: 'bookmark-edit'; id: string; title: string; url: string; stackId: string }
   | { kind: 'confirm-delete'; targetKind: 'space' | 'stack' | 'bookmark'; id: string; name: string; childCount: number }
@@ -63,6 +68,9 @@ interface StackableState {
   onboarding: boolean
   /** Bumped when something goes well (import, starter pack, stash): a good moment to ask for a rating (0.4.1). */
   wins: number
+  /** The stack a drag would drop into, while its header is lit, or BOARD while a sub-stack is
+   *  over the board, about to become a stack of its own (0.8.0). */
+  dropInto: string | null
 
   refresh: () => Promise<void>
   selectSpace: (id: string | null) => void
@@ -80,7 +88,11 @@ interface StackableState {
   removeWithUndo: (kind: DeletableKind, id: string, title: string, detail?: string) => Promise<void>
   /** A bookmark write failed: say so (it used to fail silently) and keep it for diagnostics. */
   reportError: (verb: string, err: unknown) => void
+  setDropInto: (id: string | null) => void
 }
+
+/** dropInto while a dragged sub-stack is over the board. */
+export const BOARD = 'board'
 
 const UNDO_MS = 7000
 const NOTE_MS = 2200
@@ -103,6 +115,7 @@ export const useStackableStore = create<StackableState>((set, get) => ({
   openTabs: null,
   onboarding: false,
   wins: 0,
+  dropInto: null,
 
   refresh: async () => {
     try {
@@ -158,11 +171,15 @@ export const useStackableStore = create<StackableState>((set, get) => ({
 
   revealStack: (spaceId, stackId) => {
     prefs.setLastSpaceId(spaceId)
+    // A folded stack, or one inside a folded stack, opens up so there is something to see.
+    const where = locateStack(get().tree, stackId)
+    setCollapsed([...(where?.path ?? []).map((s) => s.id), stackId], false)
     const cue = { id: stackId, seq: ++cueSeq }
     set({ selectedSpaceId: spaceId, search: '', reveal: cue })
     setTimeout(() => set((s) => (s.reveal === cue ? { reveal: null } : {})), CUE_MS)
   },
 
+  setDropInto: (id) => set((s) => (s.dropInto === id ? {} : { dropInto: id })),
   setOpenTabs: (index) => set({ openTabs: index }),
   setOnboarding: (on) => set({ onboarding: on }),
 
@@ -186,7 +203,15 @@ export const useStackableStore = create<StackableState>((set, get) => ({
 
     const restore = async () => {
       try {
-        const newId = snapshot ? await restoreSnapshot(snapshot) : null
+        // New ids for everything that comes back: colours, layouts and folds follow them.
+        const moved: Array<[string, ItemMeta]> = []
+        const newId = snapshot
+          ? await restoreSnapshot(snapshot, (from, to) => {
+              const m = useItemMeta.getState().meta[from]
+              if (m) moved.push([to, m])
+            })
+          : null
+        patchMeta(moved)
         await get().refresh()
         // Show what came back: select a space, scroll to a stack, glow a bookmark.
         if (newId && kind === 'space') get().selectSpace(newId)
@@ -208,5 +233,33 @@ export const useStackableStore = create<StackableState>((set, get) => ({
     })
   },
 }))
+
+/**
+ * Changes several items' settings in one write. useItemMeta saves every set() to chrome.storage,
+ * and when writes land in quick succession its change listener can replay an older one over the
+ * newer ones, so a burst (Collapse all, an undo) goes in as a single write.
+ */
+export function patchMeta(patches: ReadonlyArray<readonly [id: string, patch: Partial<Record<keyof ItemMeta, ItemMeta[keyof ItemMeta] | undefined>>]>): void {
+  if (patches.length === 0) return
+  const store = useItemMeta.getState()
+  const next = { ...store.meta }
+  for (const [id, patch] of patches) {
+    const merged: Record<string, unknown> = { ...next[id], ...patch }
+    for (const k of Object.keys(merged)) if (merged[k] === undefined) delete merged[k]
+    const clean = parseItemMeta({ [id]: merged })[id]
+    if (clean) next[id] = clean
+    else delete next[id]
+  }
+  useItemMeta.setState({ meta: next })
+  // One set() with no change saves the whole map: a single chrome.storage write.
+  const last = patches[patches.length - 1][0]
+  store.set(last, next[last] ?? { collapsed: undefined })
+}
+
+/** Folds or unfolds several stacks at once (Collapse all, a reveal). */
+export function setCollapsed(ids: readonly string[], collapsed: boolean): void {
+  const meta = useItemMeta.getState().meta
+  patchMeta(ids.filter((id) => !!meta[id]?.collapsed !== collapsed).map((id) => [id, { collapsed: collapsed || undefined }] as const))
+}
 
 export type { ModalState }

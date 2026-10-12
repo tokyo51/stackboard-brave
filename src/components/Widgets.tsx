@@ -1,9 +1,13 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
+import { createContext, useContext, useEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent, type ReactNode } from 'react'
 import {
+  ArrowLeft,
+  ArrowRight,
   Calculator,
   CalendarDays,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
+  ChevronsDownUp,
   Cloud,
   CloudDrizzle,
   CloudFog,
@@ -11,16 +15,20 @@ import {
   CloudRain,
   CloudSnow,
   CloudSun,
+  EyeOff,
   Flag,
   Gauge,
   Globe,
   ListTodo,
+  MoreHorizontal,
   NotebookPen,
+  Paintbrush,
   Pause,
   Play,
   Quote,
   RotateCcw,
   Search,
+  Settings2,
   Shuffle,
   SkipForward,
   Sun,
@@ -30,15 +38,20 @@ import {
 } from 'lucide-react'
 import {
   QUOTES,
+  WIDGETS,
   calculate,
   daysUntil,
   greeting,
   monthGrid,
+  moveWidget,
   nextNewYear,
   progressOf,
   quoteIndexFor,
   resolveSearch,
   skyOf,
+  type ClockPosition,
+  type ClockSettings,
+  type ClockSize,
   type Sky,
   type WidgetId,
 } from '../lib/widgets'
@@ -46,13 +59,17 @@ import { searchTree } from '../lib/search'
 import { faviconUrl } from '../lib/favicon'
 import { openHere, openInNewTab } from '../lib/tabs'
 import { useStackableStore } from '../store/useStackableStore'
+import { colorOf, useItemMeta, useMetaFor } from '../store/useItemMeta'
 import { useWidgets, type Todo } from '../store/useWidgets'
+import { openContextMenu, openContextMenuAt, type MenuItem } from './ContextMenu'
 import { useEntrance } from './StackColumn'
 
 // Fork: widgets (Settings > Widgets). A compact hero row with the clock and search sits above
 // the stacks; the grid of cards sits below them, so bookmarks are on screen first. Every card is
 // a data-surface="widget", so the board styles (glass, aero, floating, terminal, retro) and the
-// entrance animation apply to it too.
+// entrance animation apply to it too. Right-click a card (or its ... button) for its design menu:
+// colour, collapse, width, order. Right-click the clock for its position, size and what it shows.
+// The look of both lives in styles/clock.css.
 
 /** The current time, re-rendered on the next whole second or minute. */
 function useNow(every: 'second' | 'minute'): Date {
@@ -74,21 +91,61 @@ function useNow(every: 'second' | 'minute'): Date {
 // The board's words are English, so dates are too (en-GB reads day-month and 24-hour naturally).
 const locale = 'en-GB'
 
-/** Clock and search: one row across the top of the board, never taller than ~96px. */
+/**
+ * Settings on the Widgets tab, scrolled to a section if asked. The settings window opens on the
+ * tab used last, so the Widgets tab is picked once the window is up.
+ */
+function openWidgetSettings(section?: 'clock'): void {
+  useStackableStore.getState().openModal({ kind: 'settings' })
+  let tries = 0
+  const go = () => {
+    const tab = document.querySelector<HTMLElement>('[data-settings-tab="widgets"]')
+    if (!tab) {
+      if (tries++ < 20) requestAnimationFrame(go)
+      return
+    }
+    if (tab.getAttribute('aria-selected') !== 'true') tab.click()
+    if (section) setTimeout(() => document.querySelector(`[data-${section}-settings]`)?.scrollIntoView({ block: 'start' }), 60)
+  }
+  requestAnimationFrame(go)
+}
+
+/** Clock and search: one row across the top of the board, or a centred stack with the clock above. */
 export function WidgetHero() {
   const settings = useWidgets((s) => s.settings)
   const on = settings.enabled
   if (settings.collapsed || (!on.clock && !on.search)) return null
+  const pos: ClockPosition = on.clock ? settings.clock.position : 'left'
+  const layout =
+    pos === 'center'
+      ? 'mb-8 flex flex-col items-center gap-5 text-center compact:mb-5 compact:gap-4'
+      : `mb-6 flex flex-wrap items-center gap-x-8 gap-y-4 compact:mb-4 compact:gap-x-6 ${pos === 'right' ? 'flex-row-reverse' : ''}`
   return (
-    <section
-      data-widget-hero
-      aria-label="Clock and search"
-      className="mb-6 flex flex-wrap items-center gap-x-8 gap-y-4 compact:mb-4 compact:gap-x-6"
-    >
+    <section data-widget-hero data-clock-pos={pos} aria-label="Clock and search" className={layout}>
       {on.clock && <ClockHero />}
-      {on.search && <SearchBox />}
+      {on.search && <SearchBox className={pos === 'center' ? 'w-full max-w-[640px]' : 'min-w-[260px] flex-1'} />}
     </section>
   )
+}
+
+/** The cards in a render function each, so the stored order can lay them out. */
+const CARDS: Partial<Record<WidgetId, () => ReactNode>> = {
+  todo: () => <TodoCard />,
+  notes: () => <NotesCard />,
+  weather: () => <WeatherCard />,
+  calendar: () => <CalendarCard />,
+  quote: () => <QuoteCard />,
+  pomodoro: () => <PomodoroCard />,
+  countdown: () => <CountdownCard />,
+  progress: () => <ProgressCard />,
+  topsites: () => <TopSitesCard />,
+  calculator: () => <CalculatorCard />,
+}
+
+/** The cards on screen, in the order the board shows them. */
+function shownCards(): WidgetId[] {
+  const s = useWidgets.getState().settings
+  return s.order.filter((id) => s.enabled[id] && CARDS[id])
 }
 
 /** The widget cards, below the stacks so the bookmarks come first. */
@@ -96,31 +153,19 @@ export function WidgetCards() {
   const settings = useWidgets((s) => s.settings)
   const on = settings.enabled
   if (settings.collapsed) return null
-  const cards: Array<[WidgetId, () => ReactNode]> = [
-    ['todo', () => <TodoCard />],
-    ['notes', () => <NotesCard />],
-    ['weather', () => <WeatherCard />],
-    ['calendar', () => <CalendarCard />],
-    ['quote', () => <QuoteCard />],
-    ['pomodoro', () => <PomodoroCard />],
-    ['countdown', () => <CountdownCard />],
-    ['progress', () => <ProgressCard />],
-    ['topsites', () => <TopSitesCard />],
-    ['calculator', () => <CalculatorCard />],
-  ]
-  const shown = cards.filter(([id]) => on[id])
+  const shown = settings.order.filter((id) => on[id] && CARDS[id])
   if (!shown.length) return null
   return (
     <section data-widgets aria-label="Widgets" className="mt-10 compact:mt-7">
       {/* Same columns as the stack grid, so widget and stack columns line up. Rows stretch,
-          so the cards in a row share one height. */}
+          so the cards in a row share one height (a collapsed card keeps to its header). */}
       <div
         data-widget-grid
         className="grid grid-cols-[repeat(auto-fill,minmax(244px,1fr))] items-stretch gap-6 compact:grid-cols-[repeat(auto-fill,minmax(212px,1fr))] compact:gap-4"
       >
-        {shown.map(([id, render], i) => (
+        {shown.map((id, i) => (
           <WidgetShell key={id} index={i} id={id}>
-            {render()}
+            {CARDS[id]!()}
           </WidgetShell>
         ))}
       </div>
@@ -128,30 +173,118 @@ export function WidgetCards() {
   )
 }
 
+// ---------- The design menu (right-click a card, or its ... button) ----------
+
+const metaKey = (id: WidgetId) => `widget:${id}`
+const widgetName = (id: WidgetId) => WIDGETS.find((w) => w.id === id)?.name ?? 'Widget'
+
+/** Built when the menu opens, from the latest settings, so it never acts on a stale copy. */
+function widgetMenu(id: WidgetId): MenuItem[] {
+  const key = metaKey(id)
+  const meta = useItemMeta.getState().meta[key] ?? {}
+  const setMeta = useItemMeta.getState().set
+  const { settings, update } = useWidgets.getState()
+  const shown = shownCards()
+  const at = shown.indexOf(id)
+  const move = (dir: -1 | 1) => update({ order: moveWidget(settings.order, id, dir, shown) })
+  return [
+    { kind: 'label', label: 'Colour' },
+    { kind: 'colors', value: meta.color, onPick: (color) => setMeta(key, { color }) },
+    { kind: 'separator' },
+    {
+      label: meta.collapsed ? 'Expand' : 'Collapse to header',
+      icon: meta.collapsed ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronsDownUp className="h-3.5 w-3.5" />,
+      onSelect: () => setMeta(key, { collapsed: meta.collapsed ? undefined : true }),
+    },
+    {
+      kind: 'choice',
+      label: 'Width',
+      value: meta.span === 2 ? 'wide' : 'normal',
+      options: [
+        { value: 'normal', label: 'Normal' },
+        { value: 'wide', label: 'Wide' },
+      ],
+      onPick: (v) => setMeta(key, { span: v === 'wide' ? 2 : undefined }),
+    },
+    { label: 'Move earlier', icon: <ArrowLeft className="h-3.5 w-3.5" />, disabled: at <= 0, onSelect: () => move(-1) },
+    { label: 'Move later', icon: <ArrowRight className="h-3.5 w-3.5" />, disabled: at < 0 || at >= shown.length - 1, onSelect: () => move(1) },
+    { kind: 'separator' },
+    { label: 'Widget settings…', icon: <Settings2 className="h-3.5 w-3.5" />, onSelect: () => openWidgetSettings() },
+    { label: 'Hide widget', icon: <EyeOff className="h-3.5 w-3.5" />, onSelect: () => update({ enabled: { [id]: false } }) },
+  ]
+}
+
+/** Right-clicks on fields and links keep the browser's own menu (paste, open in new tab). */
+function wantsNativeMenu(e: MouseEvent): boolean {
+  return !!(e.target as Element | null)?.closest?.('input, textarea, select, a[href], [contenteditable="true"]')
+}
+
+const WidgetContext = createContext<{ id: WidgetId; collapsed: boolean } | null>(null)
+
 // A quiet well, not a white card: the bookmark cards stay the brightest layer on the board.
 // No horizontal padding of its own; polish.css insets the children by --sb-inset so a widget's
 // icon starts on the same line as a stack's title and its link icons.
 function WidgetShell({ id, index, children }: { id: WidgetId; index: number; children: ReactNode }) {
   const enter = useEntrance()
+  const meta = useMetaFor(metaKey(id))
+  const color = colorOf(meta.color)
+  const style = { '--i': index, ...(color ? { '--item-bg': color.bg, '--item-fg': color.fg } : {}) } as CSSProperties
   return (
-    <section
-      data-surface="widget"
-      data-widget={id}
-      data-enter={enter}
-      style={{ '--i': index } as CSSProperties}
-      className="flex min-w-0 flex-col rounded-xl bg-well py-3.5 text-sm text-fg compact:py-3 wallpaper:bg-panel/70 wallpaper:px-2 wallpaper:backdrop-blur-xl"
-    >
-      {children}
-    </section>
+    <WidgetContext.Provider value={{ id, collapsed: !!meta.collapsed }}>
+      <section
+        data-surface="widget"
+        data-widget={id}
+        data-enter={enter}
+        data-color={meta.color}
+        data-collapsed={meta.collapsed ? '' : undefined}
+        data-span={meta.span === 2 ? '2' : undefined}
+        style={style}
+        onContextMenu={(e) => {
+          if (wantsNativeMenu(e)) return
+          openContextMenu(e, widgetMenu(id), widgetName(id))
+        }}
+        className="group/widget flex min-w-0 flex-col rounded-xl bg-well py-3.5 text-sm text-fg compact:py-3 wallpaper:bg-panel/70 wallpaper:px-2 wallpaper:backdrop-blur-xl"
+      >
+        {children}
+      </section>
+    </WidgetContext.Provider>
   )
 }
 
 function CardHeader({ icon: Icon, title, children }: { icon: LucideIcon; title: string; children?: ReactNode }) {
+  const ctx = useContext(WidgetContext)
   return (
-    <header className="mb-2.5 flex items-center gap-1.5">
+    <header data-widget-head className="mb-2.5 flex items-center gap-1.5">
       <Icon className="h-3.5 w-3.5 shrink-0 text-faint" aria-hidden />
       <h3 className="min-w-0 flex-1 truncate text-[13px] font-semibold text-fg">{title}</h3>
-      {children}
+      {!ctx?.collapsed && children}
+      {ctx && (
+        <>
+          {ctx.collapsed && (
+            <button
+              type="button"
+              className={iconButton}
+              aria-expanded={false}
+              aria-label={`Expand ${widgetName(ctx.id)}`}
+              title="Expand"
+              onClick={() => useItemMeta.getState().set(metaKey(ctx.id), { collapsed: undefined })}
+            >
+              <ChevronDown className="h-3.5 w-3.5" />
+            </button>
+          )}
+          <button
+            type="button"
+            data-widget-menu
+            className={`${iconButton} opacity-0 group-hover/widget:opacity-100 focus-visible:opacity-100`}
+            aria-label={`${widgetName(ctx.id)} design and options`}
+            aria-haspopup="menu"
+            title="Design and options"
+            onClick={(e) => openContextMenuAt(e.currentTarget, widgetMenu(ctx.id), widgetName(ctx.id))}
+          >
+            <MoreHorizontal className="h-3.5 w-3.5" />
+          </button>
+        </>
+      )}
     </header>
   )
 }
@@ -161,43 +294,109 @@ const iconButton =
 
 // ---------- Clock ----------
 
+const SIZE_NAMES: Record<ClockSize, string> = { s: 'S', m: 'M', l: 'L', xl: 'XL' }
+
+function clockMenu(): MenuItem[] {
+  const { settings, update } = useWidgets.getState()
+  const c = settings.clock
+  const set = (patch: Partial<ClockSettings>) => update({ clock: patch })
+  const toggle = (label: string, k: 'greeting' | 'date' | 'seconds' | 'h24' | 'hoverGlow' | 'blink'): MenuItem => ({
+    label,
+    checked: c[k],
+    onSelect: () => set({ [k]: !c[k] }),
+  })
+  return [
+    {
+      kind: 'choice',
+      label: 'Position',
+      value: c.position,
+      options: [
+        { value: 'left', label: 'Left' },
+        { value: 'center', label: 'Centre' },
+        { value: 'right', label: 'Right' },
+      ],
+      onPick: (v) => set({ position: v as ClockPosition }),
+    },
+    {
+      kind: 'choice',
+      label: 'Size',
+      value: c.size,
+      options: (Object.keys(SIZE_NAMES) as ClockSize[]).map((v) => ({ value: v, label: SIZE_NAMES[v] })),
+      onPick: (v) => set({ size: v as ClockSize }),
+    },
+    { kind: 'separator' },
+    toggle('Show greeting', 'greeting'),
+    toggle('Show date', 'date'),
+    toggle('Show seconds', 'seconds'),
+    toggle('24-hour', 'h24'),
+    toggle('Blinking colon', 'blink'),
+    toggle('Glow on hover', 'hoverGlow'),
+    { kind: 'separator' },
+    { label: 'Font and effect…', icon: <Paintbrush className="h-3.5 w-3.5" />, onSelect: () => openWidgetSettings('clock') },
+    { label: 'Hide clock', icon: <EyeOff className="h-3.5 w-3.5" />, onSelect: () => update({ enabled: { clock: false } }) },
+  ]
+}
+
+/** Hours, colon and minutes as separate spans (the colon can blink), plus the day period. */
+function clockParts(now: Date, h24: boolean): { hm: Array<{ type: string; value: string }>; period?: string } {
+  const parts = new Intl.DateTimeFormat(locale, { hour: '2-digit', minute: '2-digit', hour12: !h24 }).formatToParts(now)
+  const hm = parts.filter((p) => p.type === 'hour' || p.type === 'minute' || (p.type === 'literal' && p.value.trim()))
+  return { hm, period: parts.find((p) => p.type === 'dayPeriod')?.value }
+}
+
 function ClockHero() {
-  const { name, h24, seconds, zones } = useWidgets((s) => s.settings)
-  const now = useNow(seconds ? 'second' : 'minute')
-  const time = new Intl.DateTimeFormat(locale, { hour: '2-digit', minute: '2-digit', hour12: !h24 }).formatToParts(now)
-  const main = time.filter((p) => p.type !== 'dayPeriod').map((p) => p.value).join('').trim()
-  const period = time.find((p) => p.type === 'dayPeriod')?.value
+  const name = useWidgets((s) => s.settings.name)
+  const zones = useWidgets((s) => s.settings.zones)
+  const c = useWidgets((s) => s.settings.clock)
+  const now = useNow(c.seconds ? 'second' : 'minute')
+  const { hm, period } = clockParts(now, c.h24)
   const date = new Intl.DateTimeFormat(locale, { weekday: 'long', day: 'numeric', month: 'long' }).format(now)
+  const align = c.position === 'center' ? 'justify-center' : c.position === 'right' ? 'justify-end' : ''
   return (
-    <div data-clock className="on-wallpaper min-w-0 shrink-0">
-      <p className="text-[13px] font-medium leading-4 text-muted">
-        {greeting(now.getHours())}
-        {name ? `, ${name}` : ''}
-      </p>
-      <p className="mt-1 flex items-baseline gap-1.5 font-medium leading-none tracking-tight text-strong tabular-nums">
-        <span className="text-[44px] compact:text-[36px]">{main}</span>
-        {seconds && <span className="text-lg text-muted">{String(now.getSeconds()).padStart(2, '0')}</span>}
-        {period && <span className="text-base text-muted">{period}</span>}
+    <div
+      data-clock
+      data-clock-size={c.size}
+      data-clock-font={c.font}
+      data-clock-effect={c.effect}
+      data-clock-hover={c.hoverGlow ? 'glow' : undefined}
+      data-clock-blink={c.blink ? '' : undefined}
+      className={`on-wallpaper min-w-0 shrink-0 ${c.position === 'right' ? 'text-right' : ''}`}
+      onContextMenu={(e) => openContextMenu(e, clockMenu(), 'Clock')}
+    >
+      {c.greeting && (
+        <p data-clock-greeting className="text-[13px] font-medium leading-4 text-muted">
+          {greeting(now.getHours())}
+          {name ? `, ${name}` : ''}
+        </p>
+      )}
+      <p data-clock-time className={`mt-1 flex items-baseline gap-1.5 font-medium leading-none tracking-tight text-strong tabular-nums ${align}`}>
+        <span data-clock-main>
+          {hm.map((p, i) => (p.type === 'literal' ? <span key={i} data-clock-colon>{p.value}</span> : <span key={i}>{p.value}</span>))}
+        </span>
+        {c.seconds && <span data-clock-sec className="text-muted">{String(now.getSeconds()).padStart(2, '0')}</span>}
+        {period && <span data-clock-period className="text-muted">{period}</span>}
       </p>
       {/* Date and any extra time zones share one line, so the hero stays a single compact row. */}
-      <p className="mt-1.5 flex flex-wrap items-baseline gap-x-3 text-[13px] leading-4 text-soft tabular-nums">
-        <span>{date}</span>
-        {zones.map((z) => (
-          <span key={z} className="text-xs text-muted">
-            {z.split('/').pop()?.replace(/_/g, ' ')}{' '}
-            <span className="text-fg">
-              {new Intl.DateTimeFormat(locale, { hour: '2-digit', minute: '2-digit', hour12: !h24, timeZone: z }).format(now)}
+      {(c.date || zones.length > 0) && (
+        <p data-clock-date className={`mt-1.5 flex flex-wrap items-baseline gap-x-3 text-[13px] leading-4 text-soft tabular-nums ${align}`}>
+          {c.date && <span>{date}</span>}
+          {zones.map((z) => (
+            <span key={z} className="text-xs text-muted">
+              {z.split('/').pop()?.replace(/_/g, ' ')}{' '}
+              <span className="text-fg">
+                {new Intl.DateTimeFormat(locale, { hour: '2-digit', minute: '2-digit', hour12: !c.h24, timeZone: z }).format(now)}
+              </span>
             </span>
-          </span>
-        ))}
-      </p>
+          ))}
+        </p>
+      )}
     </div>
   )
 }
 
 // ---------- Search ----------
 
-function SearchBox() {
+function SearchBox({ className }: { className: string }) {
   const engine = useWidgets((s) => s.settings.engine)
   const tree = useStackableStore((s) => s.tree)
   const openTabs = useStackableStore((s) => s.openTabs)
@@ -221,7 +420,7 @@ function SearchBox() {
 
   return (
     // flex-1 with no max width: the box runs to the right edge of the stack grid below it.
-    <div data-search className="relative min-w-[260px] flex-1">
+    <div data-search className={`relative ${className}`}>
       <form
         role="search"
         onSubmit={(e) => {

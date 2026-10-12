@@ -9,6 +9,8 @@ export interface Preset {
   id: string
   name: string
   blurb: string
+  /** Fork: Y2K looks get their own block in the grid. */
+  group?: 'y2k'
   patch: AppearancePatch
 }
 
@@ -19,6 +21,7 @@ const base: AppearancePatch = {
   density: DEFAULT_APPEARANCE.density,
   details: DEFAULT_APPEARANCE.details,
   motion: DEFAULT_APPEARANCE.motion,
+  y2k: DEFAULT_APPEARANCE.y2k,
 }
 
 export const PRESETS: readonly Preset[] = [
@@ -66,20 +69,6 @@ export const PRESETS: readonly Preset[] = [
       radius: 'round',
       bg: { kind: 'gradient' },
       motion: { level: 'full', space: 'zoom', hover: 'tilt', entrance: 'stagger', ambient: 'aurora', spring: true },
-    },
-  },
-  {
-    id: 'aero',
-    name: 'Frutiger Aero',
-    blurb: 'Glossy sky glass, bubbles and grass greens.',
-    patch: {
-      ...base,
-      palette: 'aero',
-      style: 'aero',
-      radius: 'round',
-      font: 'rounded',
-      bg: { kind: 'gradient', gradient: 1 },
-      motion: { level: 'full', space: 'slide', hover: 'glow', entrance: 'stagger', ambient: 'bubbles', spring: true },
     },
   },
   {
@@ -191,6 +180,100 @@ export const PRESETS: readonly Preset[] = [
     patch: {
       ...base,
       motion: { level: 'off', space: 'none', hover: 'none', entrance: 'none', ambient: 'none', spring: false },
+    },
+  },
+
+  // ---------- Y2K ----------
+  {
+    id: 'aero',
+    name: 'Frutiger Aero',
+    blurb: 'Glossy sky glass, bubbles and grass greens.',
+    group: 'y2k',
+    patch: {
+      ...base,
+      palette: 'aero',
+      style: 'aero',
+      radius: 'round',
+      font: 'rounded',
+      bg: { kind: 'gradient', gradient: 1, pattern: 'none' },
+      motion: { level: 'full', space: 'slide', hover: 'glow', entrance: 'stagger', ambient: 'bubbles', spring: true },
+      y2k: { gloss: 72, glow: 45, glowColor: 'accent', sparkles: false, reflections: true, pill: true },
+    },
+  },
+  {
+    id: 'vista',
+    name: 'Vista',
+    blurb: 'Aero glass over teal black, with a slow aurora.',
+    group: 'y2k',
+    patch: {
+      ...base,
+      palette: 'vista',
+      style: 'aero',
+      radius: 'soft',
+      bg: { kind: 'gradient', gradient: 6, pattern: 'none' },
+      motion: { level: 'full', space: 'blur', hover: 'glow', entrance: 'stagger', ambient: 'aurora', spring: true },
+      y2k: { gloss: 64, glow: 55, glowColor: 'mark', sparkles: false, reflections: true, pill: false },
+    },
+  },
+  {
+    id: 'aqua',
+    name: 'Aqua',
+    blurb: 'Pinstripes and blue gel, early Mac OS X.',
+    group: 'y2k',
+    patch: {
+      ...base,
+      palette: 'aqua',
+      style: 'aqua',
+      radius: 'soft',
+      bg: { kind: 'solid', pattern: 'pinstripes', patternStrength: 34 },
+      motion: { level: 'full', space: 'fade', hover: 'lift', entrance: 'rise', ambient: 'none', spring: true },
+      y2k: { gloss: 85, glow: 20, glowColor: 'accent', sparkles: false, reflections: false, pill: true },
+    },
+  },
+  {
+    id: 'bubblegum',
+    name: 'Bubblegum',
+    blurb: 'Pastel pink, lilac and baby blue, with hearts.',
+    group: 'y2k',
+    patch: {
+      ...base,
+      palette: 'bubblegum',
+      style: 'aqua',
+      radius: 'round',
+      font: 'rounded',
+      bg: { kind: 'gradient', gradient: 8, pattern: 'hearts', patternStrength: 26 },
+      motion: { level: 'full', space: 'slide', hover: 'lift', entrance: 'stagger', ambient: 'bubbles', spring: true },
+      y2k: { gloss: 70, glow: 50, glowColor: 'brand', sparkles: true, reflections: false, pill: true },
+    },
+  },
+  {
+    id: 'y2k-chrome',
+    name: 'Chrome',
+    blurb: 'Brushed silver, ice blue and a sweep of light.',
+    group: 'y2k',
+    patch: {
+      ...base,
+      palette: 'chrome',
+      style: 'chrome',
+      radius: 'round',
+      bg: { kind: 'gradient', gradient: 7, pattern: 'y2kstars', patternStrength: 14 },
+      motion: { level: 'full', space: 'zoom', hover: 'tilt', entrance: 'stagger', ambient: 'stars', spring: true },
+      y2k: { gloss: 80, glow: 30, glowColor: 'accent', sparkles: true, reflections: true, pill: true },
+    },
+  },
+  {
+    id: 'cyber-y2k',
+    name: 'Cyber Y2K',
+    blurb: 'Neon cyan and lime on black chrome.',
+    group: 'y2k',
+    patch: {
+      ...base,
+      palette: 'cyber',
+      style: 'chrome',
+      radius: 'soft',
+      bg: { kind: 'gradient', gradient: 4, pattern: 'grid', patternStrength: 22 },
+      motion: { level: 'full', space: 'zoom', hover: 'glow', entrance: 'stagger', ambient: 'grid', spring: true },
+      y2k: { gloss: 45, glow: 55, glowColor: 'mark', sparkles: true, reflections: true, pill: false },
     },
   },
 ]

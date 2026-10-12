@@ -83,6 +83,18 @@ The extra palettes are generated from each theme's official colours by `scripts/
 
 **Also fixed**: Chromium injects its own unlayered `body { font-family }` into extension pages, which beat Tailwind's layered rule, so no font setting (upstream's Inter included) ever applied. An unlayered rule fixes it.
 
+> **Note:** this fork is a playground. Lots of features went in to see what's possible; they will be trimmed and organised over the next days.
+
+### 0.8.0
+
+- **Nested folders:** sub-folders inside a stack show as foldable sub-stacks. Drag a stack onto another stack's header to nest it, drag it back onto the board to un-nest, or use Move into stack / Move to space. Search, open-all and undo include sub-stacks.
+- **Folding:** every stack and sub-stack folds to its header (remembered per stack), plus Collapse all / Expand all.
+- **Right-click everything** (or Shift+F10): spaces, stacks, links, widgets and the clock. Colour-code any of them in the theme's own tints, pick a stack layout (List, Tiles like Brave's top sites, Compact) and width (Normal, Wide), and move, rename or delete from the same menu.
+- **Clock:** Left, Centre (big, foreground, search below) or Right; S to XL; System, Bold, Thin, Serif, Mono or Rounded; None, Glow, Neon, Shadow, Outline or Glass, plus glow on hover and a blinking colon.
+- **Y2K, built out:** palettes Chrome, Bubblegum, Aqua, Cyber and Vista next to Frutiger Aero; Chrome (brushed metal, chrome capsules) and Aqua (gel, pinstripes) styles; Y2K controls for gloss, glow and its colour, sparkles, reflections and pill shapes; Pinstripes, Checker, Y2K stars, Hearts, Butterflies and Orbs patterns; six Y2K presets.
+- **Widgets:** right-click for colour, fold, wide, move earlier/later, hide.
+- Tests: unit and tree suites pass, e2e 118/118 in Brave.
+
 ### 0.7.0
 
 - **Brave and Apple looks.** Brave: Leo design tokens and the brave-core new tab page (16px cards, Leo elevation, frosted widgets over the wallpaper). Fresh installs in Brave start in this look. Apple: HIG system colours, grouped-list stacks with hairlines, vibrancy sidebar, pill buttons, Apple's curves. Note for anyone building on this: in Chromium `-apple-system` does not resolve; `BlinkMacSystemFont` and `system-ui` do.

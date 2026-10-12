@@ -44,6 +44,36 @@ export const WIDGETS: readonly WidgetInfo[] = [
   { id: 'calculator', name: 'Calculator', blurb: 'Type a sum, see the answer.', zone: 'card' },
 ]
 
+/** Fork: the cards in their first order (the order the board always showed them in). */
+export const CARD_ORDER: readonly WidgetId[] = ['todo', 'notes', 'weather', 'calendar', 'quote', 'pomodoro', 'countdown', 'progress', 'topsites', 'calculator']
+
+// ---------- Clock look (right-click the clock, or Settings > Widgets) ----------
+
+export type ClockPosition = 'left' | 'center' | 'right'
+export type ClockSize = 's' | 'm' | 'l' | 'xl'
+export type ClockFont = 'system' | 'bold' | 'thin' | 'serif' | 'mono' | 'rounded'
+export type ClockEffect = 'none' | 'glow' | 'neon' | 'shadow' | 'outline' | 'glass'
+
+export const CLOCK_POSITIONS: readonly ClockPosition[] = ['left', 'center', 'right']
+export const CLOCK_SIZES: readonly ClockSize[] = ['s', 'm', 'l', 'xl']
+export const CLOCK_FONTS: readonly ClockFont[] = ['system', 'bold', 'thin', 'serif', 'mono', 'rounded']
+export const CLOCK_EFFECTS: readonly ClockEffect[] = ['none', 'glow', 'neon', 'shadow', 'outline', 'glass']
+
+export interface ClockSettings {
+  position: ClockPosition
+  size: ClockSize
+  font: ClockFont
+  effect: ClockEffect
+  /** A soft accent glow while the pointer is on the clock. */
+  hoverGlow: boolean
+  /** The colon between hours and minutes blinks once a second (never with motion off). */
+  blink: boolean
+  greeting: boolean
+  date: boolean
+  seconds: boolean
+  h24: boolean
+}
+
 export type EngineId = 'brave' | 'google' | 'duckduckgo' | 'startpage' | 'kagi' | 'ecosia' | 'bing'
 
 export const ENGINES: Record<EngineId, { name: string; url: string }> = {
@@ -82,8 +112,10 @@ export interface WidgetSettings {
   enabled: Record<WidgetId, boolean>
   /** For the greeting. */
   name: string
-  h24: boolean
-  seconds: boolean
+  /** Fork: the clock's look and what it shows (24-hour and seconds moved in here). */
+  clock: ClockSettings
+  /** Fork: the cards' order on the board; always every card id, once. */
+  order: WidgetId[]
   /** Extra clocks: IANA zones such as "America/New_York". */
   zones: string[]
   engine: EngineId
@@ -110,8 +142,19 @@ export const DEFAULT_WIDGETS: WidgetSettings = {
     calculator: false,
   },
   name: '',
-  h24: true,
-  seconds: false,
+  clock: {
+    position: 'left',
+    size: 'm',
+    font: 'system',
+    effect: 'none',
+    hoverGlow: false,
+    blink: false,
+    greeting: true,
+    date: true,
+    seconds: false,
+    h24: true,
+  },
+  order: [...CARD_ORDER],
   zones: [],
   engine: 'brave',
   weather: { city: '', lat: null, lon: null, unit: 'c' },
@@ -125,6 +168,8 @@ const str = (v: unknown, fallback: string, max = 120) => (typeof v === 'string' 
 const bool = (v: unknown, fallback: boolean) => (typeof v === 'boolean' ? v : fallback)
 const num = (v: unknown, min: number, max: number, fallback: number) =>
   typeof v === 'number' && Number.isFinite(v) ? Math.min(max, Math.max(min, Math.round(v))) : fallback
+const oneOf = <T extends string>(v: unknown, all: readonly T[], fallback: T): T =>
+  typeof v === 'string' && (all as readonly string[]).includes(v) ? (v as T) : fallback
 const coord = (v: unknown, lim: number) => (typeof v === 'number' && Number.isFinite(v) && Math.abs(v) <= lim ? v : null)
 
 /** Whatever storage holds, back as complete, valid settings. */
@@ -135,6 +180,8 @@ export function parseWidgets(raw: unknown): WidgetSettings {
   const w = obj(o.weather)
   const c = obj(o.countdown)
   const p = obj(o.pomodoro)
+  const k = obj(o.clock)
+  const dk = d.clock
   const enabled = { ...d.enabled }
   for (const k of Object.keys(enabled) as WidgetId[]) enabled[k] = bool(en[k], d.enabled[k])
   const zones = Array.isArray(o.zones) ? o.zones.filter((z): z is string => typeof z === 'string' && isZone(z)).slice(0, 4) : d.zones
@@ -142,8 +189,20 @@ export function parseWidgets(raw: unknown): WidgetSettings {
   return {
     enabled,
     name: str(o.name, d.name, 40),
-    h24: bool(o.h24, d.h24),
-    seconds: bool(o.seconds, d.seconds),
+    clock: {
+      position: oneOf(k.position, CLOCK_POSITIONS, dk.position),
+      size: oneOf(k.size, CLOCK_SIZES, dk.size),
+      font: oneOf(k.font, CLOCK_FONTS, dk.font),
+      effect: oneOf(k.effect, CLOCK_EFFECTS, dk.effect),
+      hoverGlow: bool(k.hoverGlow, dk.hoverGlow),
+      blink: bool(k.blink, dk.blink),
+      greeting: bool(k.greeting, dk.greeting),
+      date: bool(k.date, dk.date),
+      // Before the clock had its own settings these two sat at the top level.
+      seconds: bool(k.seconds, bool(o.seconds, dk.seconds)),
+      h24: bool(k.h24, bool(o.h24, dk.h24)),
+    },
+    order: parseOrder(o.order),
     zones,
     engine: typeof o.engine === 'string' && o.engine in ENGINES ? (o.engine as EngineId) : d.engine,
     weather: {
@@ -156,6 +215,26 @@ export function parseWidgets(raw: unknown): WidgetSettings {
     pomodoro: { work: num(p.work, 1, 120, d.pomodoro.work), rest: num(p.rest, 1, 60, d.pomodoro.rest) },
     collapsed: bool(o.collapsed, d.collapsed),
   }
+}
+
+/** Known card ids once each, in the stored order, then any the list missed in their first order. */
+function parseOrder(raw: unknown): WidgetId[] {
+  const seen = new Set<WidgetId>()
+  if (Array.isArray(raw)) for (const id of raw) if (CARD_ORDER.includes(id as WidgetId)) seen.add(id as WidgetId)
+  for (const id of CARD_ORDER) seen.add(id)
+  return [...seen]
+}
+
+/**
+ * Move a card one place earlier (-1) or later (1) among the cards on screen: it trades places
+ * with its visible neighbour, and hidden cards keep their spots. Unchanged at either end.
+ */
+export function moveWidget(order: readonly WidgetId[], id: WidgetId, dir: -1 | 1, shown: readonly WidgetId[]): WidgetId[] {
+  const visible = order.filter((x) => shown.includes(x))
+  const i = visible.indexOf(id)
+  const other = visible[i + dir]
+  if (i < 0 || !other) return [...order]
+  return order.map((x) => (x === id ? other : x === other ? id : x))
 }
 
 export function isZone(zone: string): boolean {

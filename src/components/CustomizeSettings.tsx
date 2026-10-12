@@ -1,15 +1,40 @@
 import { useState } from 'react'
-import { Check, Download, Upload } from 'lucide-react'
-import { resolveScheme, type Ambient, type Density, type Entrance, type Font, type HoverEffect, type MotionLevel, type Radius, type SpaceTransition, type Style } from '../lib/appearance'
+import { Check, Download, Sparkles, Upload } from 'lucide-react'
+import {
+  Y2K_STYLES,
+  resolveScheme,
+  type Ambient,
+  type Density,
+  type Entrance,
+  type Font,
+  type GlowColor,
+  type HoverEffect,
+  type MotionLevel,
+  type Radius,
+  type SpaceTransition,
+  type Style,
+} from '../lib/appearance'
 import { PRESETS, type Preset } from '../lib/presets'
 import { readThemeFile, themeFile } from '../lib/themeFile'
 import { downloadJson, pickJsonFile } from '../lib/tabs'
-import { ENGINES, WIDGETS, isZone, type EngineId, type WidgetId } from '../lib/widgets'
+import {
+  CLOCK_EFFECTS,
+  CLOCK_FONTS,
+  ENGINES,
+  WIDGETS,
+  isZone,
+  type ClockEffect,
+  type ClockFont,
+  type ClockPosition,
+  type ClockSize,
+  type EngineId,
+  type WidgetId,
+} from '../lib/widgets'
 import { useAppearance } from '../store/useAppearance'
 import { useWidgets } from '../store/useWidgets'
 import { MiniBoard } from './AppearanceSettings'
 import { geocodeCity } from './Widgets'
-import { Actions, Button, Group, Row, Section, Segmented, Toggle, fieldClass } from './settings/ui'
+import { Actions, Button, Group, Row, Section, Segmented, Slider, SubLabel, Toggle, fieldClass } from './settings/ui'
 
 // Fork: the Settings tabs beyond themes and background. Every control applies at once to the
 // board behind the dialog, which is the preview.
@@ -27,7 +52,8 @@ function matches(p: Preset, a: Look): boolean {
     x.font === a.font &&
     x.density === a.density &&
     x.details === a.details &&
-    JSON.stringify(x.motion) === JSON.stringify(a.motion)
+    JSON.stringify(x.motion) === JSON.stringify(a.motion) &&
+    (!x.y2k || JSON.stringify(x.y2k) === JSON.stringify(a.y2k))
   )
 }
 
@@ -41,48 +67,54 @@ export function PresetSection() {
   const systemDark = useAppearance((s) => s.systemDark)
   const update = useAppearance((s) => s.update)
   const themeless = PRESETS.filter((p) => !p.patch.palette).map((p) => p.name)
+  const tile = (p: Preset) => {
+    const x = p.patch
+    const palette = x.palette ?? a.palette
+    const kind = x.bg?.kind ?? a.bg.kind
+    const on = matches(p, a)
+    return (
+      <button
+        key={p.id}
+        type="button"
+        role="radio"
+        aria-checked={on}
+        data-preset={p.id}
+        onClick={() => update(p.patch)}
+        className={`flex min-w-0 items-center gap-3 rounded-xl bg-raised p-2 pr-3 text-left transition-shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus ${
+          on ? 'ring-2 ring-accent' : 'ring-1 ring-line hover:ring-line-strong'
+        }`}
+      >
+        <span className="relative block aspect-[16/10] w-20 shrink-0 overflow-hidden rounded-lg ring-1 ring-line">
+          <MiniBoard
+            palette={palette}
+            scheme={resolveScheme(a.mode, palette, systemDark)}
+            look={{
+              style: x.style,
+              radius: x.radius,
+              density: x.density,
+              gradient: kind === 'gradient' ? (x.bg?.gradient ?? a.bg.gradient) : null,
+            }}
+          />
+        </span>
+        <span className="min-w-0 flex-1 leading-tight">
+          <span className="flex items-center gap-1.5 text-xs font-semibold text-strong">
+            <span className="truncate">{p.name}</span>
+            {on && <Check className="h-3.5 w-3.5 shrink-0 text-accent-text" strokeWidth={2.5} />}
+          </span>
+          <span className="mt-0.5 line-clamp-2 block text-[11px] leading-snug text-muted">{p.blurb}</span>
+        </span>
+      </button>
+    )
+  }
   return (
     <Section data-presets title="Presets" description="A whole look in one click. Change anything afterwards.">
-      <div role="radiogroup" aria-label="Presets" className="grid grid-cols-3 gap-3">
-        {PRESETS.map((p) => {
-          const x = p.patch
-          const palette = x.palette ?? a.palette
-          const kind = x.bg?.kind ?? a.bg.kind
-          const on = matches(p, a)
-          return (
-            <button
-              key={p.id}
-              type="button"
-              role="radio"
-              aria-checked={on}
-              data-preset={p.id}
-              onClick={() => update(p.patch)}
-              className={`flex min-w-0 items-center gap-3 rounded-xl bg-raised p-2 pr-3 text-left transition-shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus ${
-                on ? 'ring-2 ring-accent' : 'ring-1 ring-line hover:ring-line-strong'
-              }`}
-            >
-              <span className="relative block aspect-[16/10] w-20 shrink-0 overflow-hidden rounded-lg ring-1 ring-line">
-                <MiniBoard
-                  palette={palette}
-                  scheme={resolveScheme(a.mode, palette, systemDark)}
-                  look={{
-                    style: x.style,
-                    radius: x.radius,
-                    density: x.density,
-                    gradient: kind === 'gradient' ? (x.bg?.gradient ?? a.bg.gradient) : null,
-                  }}
-                />
-              </span>
-              <span className="min-w-0 flex-1 leading-tight">
-                <span className="flex items-center gap-1.5 text-xs font-semibold text-strong">
-                  <span className="truncate">{p.name}</span>
-                  {on && <Check className="h-3.5 w-3.5 shrink-0 text-accent-text" strokeWidth={2.5} />}
-                </span>
-                <span className="mt-0.5 line-clamp-2 block text-[11px] leading-snug text-muted">{p.blurb}</span>
-              </span>
-            </button>
-          )
-        })}
+      {/* One radio group; the Y2K looks sit in their own block under the rest. */}
+      <div role="radiogroup" aria-label="Presets" className="flex flex-col gap-5">
+        <div className="grid grid-cols-3 gap-3">{PRESETS.filter((p) => !p.group).map(tile)}</div>
+        <div data-preset-group="y2k">
+          <p className="mb-2 text-xs font-medium text-soft">Y2K</p>
+          <div className="grid grid-cols-3 gap-3">{PRESETS.filter((p) => p.group === 'y2k').map(tile)}</div>
+        </div>
       </div>
       {themeless.length > 0 && (
         <p className="mt-3 text-xs leading-relaxed text-muted">
@@ -146,17 +178,20 @@ export function StyleSection() {
           <Row label="Style">
             <Segmented<Style>
               label="Style"
+              columns={5}
               value={a.style}
               onChange={(style) => update({ style })}
               options={[
                 { value: 'flat', label: 'Flat' },
                 { value: 'glass', label: 'Liquid glass' },
-                { value: 'aero', label: 'Aero' },
                 { value: 'floating', label: 'Floating' },
-                { value: 'terminal', label: 'Terminal' },
-                { value: 'retro', label: 'Retro OS' },
                 { value: 'apple', label: 'Apple' },
                 { value: 'brave', label: 'Brave' },
+                { value: 'terminal', label: 'Terminal' },
+                { value: 'retro', label: 'Retro OS' },
+                { value: 'aero', label: 'Aero' },
+                { value: 'chrome', label: 'Chrome' },
+                { value: 'aqua', label: 'Aqua' },
               ]}
             />
           </Row>
@@ -174,6 +209,8 @@ export function StyleSection() {
           </Row>
         </Group>
       </Section>
+
+      <Y2KSection />
 
       <Section title="Text and layout">
         <Group>
@@ -213,6 +250,88 @@ export function StyleSection() {
         </Group>
       </Section>
     </div>
+  )
+}
+
+/**
+ * Gloss, glow, sparkles, reflections and pill shapes. In full for Aero, Chrome and Aqua; glass
+ * takes the gloss and glow lightly; any other style gets a shortcut to the three.
+ */
+function Y2KSection() {
+  const a = useAppearance((s) => s.appearance)
+  const update = useAppearance((s) => s.update)
+  const y = a.y2k
+  const full = Y2K_STYLES.includes(a.style)
+  const light = a.style === 'glass'
+  const dot = (v: string) => <span aria-hidden className="h-2.5 w-2.5 rounded-full ring-1 ring-line-strong" style={{ background: v }} />
+  const strengths = (
+    <>
+      <Row label="Gloss" hint={light ? 'Glass takes it lightly: the sheen on each pane.' : 'Highlights on panels, headers and buttons.'}>
+        <Slider label="Gloss" value={y.gloss} max={100} unit="%" onChange={(gloss) => update({ y2k: { gloss } }, { gentle: true })} />
+      </Row>
+      <Row label="Glow" hint={light ? 'A faint halo around each pane.' : 'A soft halo around stacks and widgets.'}>
+        <Slider label="Glow" value={y.glow} max={100} unit="%" onChange={(glow) => update({ y2k: { glow } }, { gentle: true })} />
+      </Row>
+      <Row label="Glow colour">
+        <Segmented<GlowColor>
+          label="Glow colour"
+          value={y.glowColor}
+          onChange={(glowColor) => update({ y2k: { glowColor } })}
+          options={[
+            { value: 'accent', label: 'Accent', icon: dot('var(--sb-accent)') },
+            { value: 'brand', label: 'Second', icon: dot('var(--sb-brand-to)') },
+            { value: 'mark', label: 'Highlight', icon: dot('var(--sb-accent-mark)') },
+            { value: 'white', label: 'White', icon: dot('#ffffff') },
+          ]}
+        />
+      </Row>
+    </>
+  )
+  return (
+    <Section
+      data-y2k-settings
+      data-active={full ? '' : undefined}
+      title={
+        <span className="inline-flex items-center gap-1.5">
+          <Sparkles aria-hidden className={`h-3.5 w-3.5 ${full ? 'text-accent-text' : 'text-faint'}`} />
+          Y2K
+        </span>
+      }
+      description={
+        full
+          ? 'Gloss, glow and the little extras. Every change shows on the board behind this window.'
+          : light
+            ? 'Liquid glass takes gloss and glow lightly. The extras need Aero, Chrome or Aqua.'
+            : 'Glossy panels, glows, sparkles and reflections come with the Aero, Chrome and Aqua styles.'
+      }
+    >
+      {full && (
+        <Group>
+          {strengths}
+          <Row label="Extras">
+            <div className="grid grid-cols-2 gap-x-6 gap-y-3">
+              <Toggle label="Sparkles" hint="Small four-point stars twinkle on panel corners." checked={y.sparkles} onChange={(sparkles) => update({ y2k: { sparkles } })} />
+              <Toggle label="Reflections" hint="A soft mirror image under each stack and widget." checked={y.reflections} onChange={(reflections) => update({ y2k: { reflections } })} />
+              <Toggle label="Pill shapes" hint="Buttons and headers turn into capsules." checked={y.pill} onChange={(pill) => update({ y2k: { pill } })} />
+            </div>
+          </Row>
+        </Group>
+      )}
+      {light && <Group>{strengths}</Group>}
+      {!full && (
+        <Group className={light ? 'mt-3' : ''}>
+          <Row label="Try a style">
+            <Actions>
+              {(['aero', 'chrome', 'aqua'] as const).map((style) => (
+                <Button key={style} data-y2k-style={style} onClick={() => update({ style })}>
+                  {style === 'aero' ? 'Aero' : style === 'chrome' ? 'Chrome' : 'Aqua'}
+                </Button>
+              ))}
+            </Actions>
+          </Row>
+        </Group>
+      )}
+    </Section>
   )
 }
 
@@ -356,16 +475,12 @@ export function WidgetSection() {
         </Group>
       </Section>
 
+      <ClockSection />
+
       <Section title="Details">
         <Group>
           <Row label="Your name" hint="For the greeting.">
             <input className={`${fieldClass} w-56`} value={w.name} maxLength={40} placeholder="Alex" aria-label="Your name" onChange={(e) => update({ name: e.target.value })} />
-          </Row>
-          <Row label="Clock">
-            <div className="flex flex-wrap gap-x-6">
-              <Toggle label="24-hour" checked={w.h24} onChange={(h24) => update({ h24 })} />
-              <Toggle label="Seconds" checked={w.seconds} onChange={(seconds) => update({ seconds })} />
-            </div>
           </Row>
           <Row label="Other zones" hint={zoneError ?? 'Up to four, by city name in the IANA list.'}>
             <input
@@ -409,6 +524,112 @@ export function WidgetSection() {
         </Group>
       </Section>
     </div>
+  )
+}
+
+const FONT_NAMES: Record<ClockFont, string> = { system: 'System', bold: 'Bold', thin: 'Thin', serif: 'Serif', mono: 'Mono', rounded: 'Rounded' }
+const EFFECT_NAMES: Record<ClockEffect, string> = { none: 'None', glow: 'Glow', neon: 'Neon', shadow: 'Shadow', outline: 'Outline', glass: 'Glass' }
+
+/** The clock's look. Font and effect tiles show the time the way the board will draw it. */
+function ClockSection() {
+  const c = useWidgets((s) => s.settings.clock)
+  const update = useWidgets((s) => s.update)
+  const set = (clock: Partial<typeof c>) => update({ clock })
+  const sample = '12:34'
+  const tile = (on: boolean) =>
+    `relative flex aspect-[16/10] w-full items-center justify-center overflow-hidden rounded-lg bg-canvas transition-shadow ${
+      on ? 'ring-2 ring-accent ring-offset-2 ring-offset-raised' : 'ring-1 ring-line group-hover/tile:ring-line-strong'
+    } group-focus-visible/tile:ring-2 group-focus-visible/tile:ring-focus`
+  return (
+    <Section data-clock-settings title="Clock" description="Right-click the clock on the board for the quick options.">
+      <Group>
+        <Row label="Position">
+          <Segmented<ClockPosition>
+            label="Clock position"
+            value={c.position}
+            onChange={(position) => set({ position })}
+            options={[
+              { value: 'left', label: 'Left' },
+              { value: 'center', label: 'Centre' },
+              { value: 'right', label: 'Right' },
+            ]}
+          />
+        </Row>
+        <Row label="Size">
+          <Segmented<ClockSize>
+            label="Clock size"
+            value={c.size}
+            onChange={(size) => set({ size })}
+            options={[
+              { value: 's', label: 'Small' },
+              { value: 'm', label: 'Medium' },
+              { value: 'l', label: 'Large' },
+              { value: 'xl', label: 'Extra large' },
+            ]}
+          />
+        </Row>
+        <div className="p-4">
+          <SubLabel aside={FONT_NAMES[c.font]}>Font</SubLabel>
+          <div role="radiogroup" aria-label="Clock font" className="grid grid-cols-6 gap-2">
+            {CLOCK_FONTS.map((f) => (
+              <button
+                key={f}
+                type="button"
+                role="radio"
+                aria-checked={c.font === f}
+                aria-label={FONT_NAMES[f]}
+                data-clock-font-option={f}
+                onClick={() => set({ font: f })}
+                className="group/tile flex min-w-0 flex-col items-center gap-1.5 rounded-lg focus-visible:outline-none"
+              >
+                <span className={tile(c.font === f)} data-clock-font={f}>
+                  <span data-clock-time className="text-[22px] leading-none text-strong tabular-nums">
+                    <span data-clock-main>{sample}</span>
+                  </span>
+                </span>
+                <span className={`max-w-full truncate text-[11px] ${c.font === f ? 'font-medium text-strong' : 'text-muted'}`}>{FONT_NAMES[f]}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="p-4">
+          <SubLabel aside={EFFECT_NAMES[c.effect]}>Effect</SubLabel>
+          <div role="radiogroup" aria-label="Clock effect" className="grid grid-cols-6 gap-2">
+            {CLOCK_EFFECTS.map((fx) => (
+              <button
+                key={fx}
+                type="button"
+                role="radio"
+                aria-checked={c.effect === fx}
+                aria-label={EFFECT_NAMES[fx]}
+                data-clock-effect-option={fx}
+                onClick={() => set({ effect: fx })}
+                className="group/tile flex min-w-0 flex-col items-center gap-1.5 rounded-lg focus-visible:outline-none"
+              >
+                <span className={tile(c.effect === fx)} data-clock-font={c.font}>
+                  <span data-clock-effect={fx} data-clock-sample>
+                    <span data-clock-time className="text-[22px] leading-none text-strong tabular-nums">
+                      <span data-clock-main>{sample}</span>
+                    </span>
+                  </span>
+                </span>
+                <span className={`max-w-full truncate text-[11px] ${c.effect === fx ? 'font-medium text-strong' : 'text-muted'}`}>{EFFECT_NAMES[fx]}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+        <Row label="Show">
+          <div className="grid grid-cols-2 gap-x-6 gap-y-3">
+            <Toggle label="Greeting" checked={c.greeting} onChange={(greeting) => set({ greeting })} />
+            <Toggle label="Date" checked={c.date} onChange={(date) => set({ date })} />
+            <Toggle label="Seconds" checked={c.seconds} onChange={(seconds) => set({ seconds })} />
+            <Toggle label="24-hour" checked={c.h24} onChange={(h24) => set({ h24 })} />
+            <Toggle label="Blinking colon" hint="Rests when motion is off." checked={c.blink} onChange={(blink) => set({ blink })} />
+            <Toggle label="Glow on hover" hint="A soft halo in your accent." checked={c.hoverGlow} onChange={(hoverGlow) => set({ hoverGlow })} />
+          </div>
+        </Row>
+      </Group>
+    </Section>
   )
 }
 

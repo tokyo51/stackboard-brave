@@ -12,7 +12,7 @@ export type PaletteId = 'stackboard' | 'catppuccin' | 'gruvbox' | 'nord' | Gener
 export type PaletteGroup = 'Native' | 'Classic' | 'Dev' | 'Calm' | 'Retro' | 'Y2K'
 export type Density = 'comfortable' | 'compact' | 'spacious'
 /** Fork: how surfaces are drawn. flat is the original look. */
-export type Style = 'flat' | 'glass' | 'aero' | 'floating' | 'terminal' | 'retro' | 'apple' | 'brave'
+export type Style = 'flat' | 'glass' | 'aero' | 'floating' | 'terminal' | 'retro' | 'apple' | 'brave' | 'chrome' | 'aqua'
 export type Radius = 'sharp' | 'soft' | 'round'
 export type Font = 'system' | 'rounded' | 'mono' | 'serif'
 export type MotionLevel = 'off' | 'subtle' | 'full'
@@ -30,6 +30,24 @@ export interface Motion {
   /** A little overshoot when a dragged card lands. */
   spring: boolean
 }
+/** Fork: the Y2K styles (aero, chrome, aqua) read these; glass takes gloss and glow lightly. */
+export type GlowColor = 'accent' | 'brand' | 'mark' | 'white'
+export interface Y2K {
+  /** 0-100: how bright the specular highlights are. */
+  gloss: number
+  /** 0-100: how far the soft outer glow around panels reaches. */
+  glow: number
+  glowColor: GlowColor
+  /** Small four-point stars twinkling on panel corners and the board title. */
+  sparkles: boolean
+  /** A soft mirror image under stacks and widgets. */
+  reflections: boolean
+  /** Pill-shaped buttons and headers. */
+  pill: boolean
+}
+/** Styles the Y2K options apply to in full. */
+export const Y2K_STYLES: readonly Style[] = ['aero', 'chrome', 'aqua']
+
 export type BgKind = 'solid' | 'gradient' | 'image'
 /** 1-3: the palette's own gradients; 4-9: glows mixed from its accents (lib/backgrounds.ts). */
 export type GradientId = number
@@ -60,6 +78,7 @@ export interface Appearance {
   /** Show each link's site under its title. */
   details: boolean
   motion: Motion
+  y2k: Y2K
 }
 
 export interface PaletteInfo {
@@ -102,6 +121,7 @@ export const DEFAULT_APPEARANCE: Appearance = {
   font: 'system',
   details: false,
   motion: { level: 'full', space: 'fade', hover: 'lift', entrance: 'rise', ambient: 'none', spring: true },
+  y2k: { gloss: 60, glow: 40, glowColor: 'accent', sparkles: false, reflections: false, pill: false },
 }
 
 /**
@@ -148,7 +168,7 @@ export function variantName(palette: PaletteId, scheme: Scheme): string {
 
 const MODES: readonly Mode[] = ['system', 'light', 'dark']
 const DENSITIES: readonly Density[] = ['comfortable', 'compact', 'spacious']
-export const STYLES: readonly Style[] = ['flat', 'glass', 'aero', 'floating', 'terminal', 'retro', 'apple', 'brave']
+export const STYLES: readonly Style[] = ['flat', 'glass', 'aero', 'floating', 'terminal', 'retro', 'apple', 'brave', 'chrome', 'aqua']
 export const RADII: readonly Radius[] = ['sharp', 'soft', 'round']
 export const FONTS: readonly Font[] = ['system', 'rounded', 'mono', 'serif']
 const LEVELS: readonly MotionLevel[] = ['off', 'subtle', 'full']
@@ -157,6 +177,7 @@ const HOVERS: readonly HoverEffect[] = ['none', 'lift', 'tilt', 'glow']
 const ENTRANCES: readonly Entrance[] = ['none', 'rise', 'stagger']
 export const AMBIENTS: readonly Ambient[] = ['none', 'aurora', 'drift', 'bubbles', 'grid', 'scanlines', 'stars', 'waves', 'fireflies', 'lava']
 const KINDS: readonly BgKind[] = ['solid', 'gradient', 'image']
+export const GLOW_COLORS: readonly GlowColor[] = ['accent', 'brand', 'mark', 'white']
 
 function pick<T extends string>(value: unknown, allowed: readonly T[], fallback: T): T {
   return typeof value === 'string' && (allowed as readonly string[]).includes(value) ? (value as T) : fallback
@@ -177,6 +198,8 @@ export function parseAppearance(raw: unknown): Appearance {
   const o = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {}
   const b = o.bg && typeof o.bg === 'object' ? (o.bg as Record<string, unknown>) : {}
   const m = o.motion && typeof o.motion === 'object' ? (o.motion as Record<string, unknown>) : {}
+  const y = o.y2k && typeof o.y2k === 'object' ? (o.y2k as Record<string, unknown>) : {}
+  const flag = (v: unknown, fallback: boolean) => (typeof v === 'boolean' ? v : fallback)
   return {
     mode: pick(o.mode, MODES, d.mode),
     palette: pick(o.palette, PALETTES.map((p) => p.id), d.palette),
@@ -201,6 +224,14 @@ export function parseAppearance(raw: unknown): Appearance {
       entrance: pick(m.entrance, ENTRANCES, d.motion.entrance),
       ambient: pick(m.ambient, AMBIENTS, d.motion.ambient),
       spring: typeof m.spring === 'boolean' ? m.spring : d.motion.spring,
+    },
+    y2k: {
+      gloss: clampInt(y.gloss, 0, 100, d.y2k.gloss),
+      glow: clampInt(y.glow, 0, 100, d.y2k.glow),
+      glowColor: pick(y.glowColor, GLOW_COLORS, d.y2k.glowColor),
+      sparkles: flag(y.sparkles, d.y2k.sparkles),
+      reflections: flag(y.reflections, d.y2k.reflections),
+      pill: flag(y.pill, d.y2k.pill),
     },
   }
 }
@@ -250,13 +281,20 @@ export function settingsFromMirror(json: string | null): Appearance {
 }
 
 /** Apply a partial change; numbers are clamped like anything read from storage. */
-export type AppearancePatch = Partial<Omit<Appearance, 'bg' | 'motion'>> & {
+export type AppearancePatch = Partial<Omit<Appearance, 'bg' | 'motion' | 'y2k'>> & {
   bg?: Partial<Background>
   motion?: Partial<Motion>
+  y2k?: Partial<Y2K>
 }
 
 export function mergeAppearance(a: Appearance, patch: AppearancePatch): Appearance {
-  return parseAppearance({ ...a, ...patch, bg: { ...a.bg, ...patch.bg }, motion: { ...a.motion, ...patch.motion } })
+  return parseAppearance({
+    ...a,
+    ...patch,
+    bg: { ...a.bg, ...patch.bg },
+    motion: { ...a.motion, ...patch.motion },
+    y2k: { ...a.y2k, ...patch.y2k },
+  })
 }
 
 /**
@@ -278,13 +316,21 @@ export function styleAttributes(a: Appearance): Record<string, string> {
     'data-space-tx': off ? 'none' : m.space,
     'data-spring': !off && m.spring ? 'on' : 'off',
     'data-pattern': a.bg.kind === 'image' ? 'none' : a.bg.pattern,
+    // Fork: Y2K options. CSS (styles/y2k.css) only reads them under the Y2K styles and glass.
+    'data-y2k-glow': a.y2k.glowColor,
+    'data-y2k-sparkles': a.y2k.sparkles ? 'on' : 'off',
+    'data-y2k-reflect': a.y2k.reflections ? 'on' : 'off',
+    'data-y2k-pill': a.y2k.pill ? 'on' : 'off',
   }
 }
 
-/** Custom properties <html> carries for the background (the chosen gradient, the pattern's strength). */
+/** Custom properties <html> carries for the background (the chosen gradient, the pattern's strength) and the Y2K strengths. */
 export function styleVars(a: Appearance): Record<string, string> {
   return {
     '--sb-bg-layer': gradientCss(a.bg.gradient),
     '--sb-pattern-alpha': String(Math.round(a.bg.patternStrength * 0.22) / 100),
+    // 0-1 multipliers for the Y2K highlights and the outer glow.
+    '--sb-y2k-gloss': String(a.y2k.gloss / 100),
+    '--sb-y2k-glow': String(a.y2k.glow / 100),
   }
 }

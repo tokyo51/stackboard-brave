@@ -155,53 +155,129 @@ async function ensureRootNow(): Promise<string> {
   return root.id
 }
 
-/**
- * Build the entire Stackboard tree as a typed object.
- * Cheap — the subtree is small (hundreds of items, not thousands).
- */
-export async function readTree(): Promise<StackableTree> {
-  if (!IS_EXTENSION) return DEMO_TREE
-  const rootId = await ensureRoot()
-  const subtree = await chrome.bookmarks.getSubTree(rootId)
-  const root = subtree[0]
-  const spaceNodes = (root.children ?? []).filter(isFolder)
+/** The parts of a chrome.bookmarks node the board reads; tests build these by hand. */
+export interface TreeNode {
+  id: string
+  title: string
+  url?: string
+  index?: number
+  dateAdded?: number
+  children?: TreeNode[]
+}
 
-  const spaces: Space[] = spaceNodes
-    .sort((a, b) => (a.index ?? 0) - (b.index ?? 0))
+const byIndex = (a: TreeNode, b: TreeNode) => (a.index ?? 0) - (b.index ?? 0)
+
+function mapStack(node: TreeNode, spaceId: string, parentStackId?: string): Stack {
+  const kids = (node.children ?? []).slice().sort(byIndex)
+  const links = kids.filter((c) => !!c.url)
+  const batch = batchFlags(links.map((b) => b.dateAdded))
+  return {
+    id: node.id,
+    title: node.title,
+    parentSpaceId: spaceId,
+    index: node.index,
+    ...(parentStackId ? { parentStackId } : {}),
+    bookmarks: links.map((b, i) => ({
+      id: b.id,
+      title: b.title || b.url || 'Untitled',
+      url: b.url!,
+      parentStackId: node.id,
+      index: b.index,
+      dateAdded: b.dateAdded,
+      batch: batch[i],
+    })),
+    // 0.8.0: a folder inside a stack used to vanish from the board; it is a sub-stack now.
+    children: kids.filter((c) => !c.url).map((c) => mapStack(c, spaceId, node.id)),
+  }
+}
+
+/**
+ * The Stackboard root folder as a typed tree: space folders, their stack folders, and every
+ * folder below those as sub-stacks. Pure, so the unit tests can feed it hand-made nodes.
+ * Links sitting straight in the root or in a space folder have no stack and are left out.
+ */
+export function mapTree(root: TreeNode): StackableTree {
+  const spaces: Space[] = (root.children ?? [])
+    .filter((n) => !n.url)
+    .sort(byIndex)
     .map((spaceNode) => {
       const parsed = parseSpaceTitle(spaceNode.title)
-      const stackNodes = (spaceNode.children ?? []).filter(isFolder)
-      const stacks: Stack[] = stackNodes
-        .sort((a, b) => (a.index ?? 0) - (b.index ?? 0))
-        .map((stackNode) => {
-          const bookmarkNodes = (stackNode.children ?? []).filter((c) => !!c.url)
-          const sorted = bookmarkNodes.sort((a, b) => (a.index ?? 0) - (b.index ?? 0))
-          const batch = batchFlags(sorted.map((b) => b.dateAdded))
-          const bookmarks: Bookmark[] = sorted.map((b, i) => ({
-            id: b.id,
-            title: b.title || b.url || 'Untitled',
-            url: b.url!,
-            parentStackId: stackNode.id,
-            dateAdded: b.dateAdded,
-            batch: batch[i],
-          }))
-          return {
-            id: stackNode.id,
-            title: stackNode.title,
-            parentSpaceId: spaceNode.id,
-            bookmarks,
-          }
-        })
       return {
         id: spaceNode.id,
         rawTitle: spaceNode.title,
         name: parsed.name,
         emoji: parsed.emoji,
-        stacks,
+        stacks: (spaceNode.children ?? [])
+          .filter((n) => !n.url)
+          .sort(byIndex)
+          .map((stackNode) => mapStack(stackNode, spaceNode.id)),
       }
     })
+  return { rootId: root.id, rootDateAdded: root.dateAdded, spaces }
+}
 
-  return { rootId, rootDateAdded: root.dateAdded, spaces }
+/**
+ * Build the entire Stackboard tree as a typed object.
+ * Cheap: the subtree is small (hundreds of items, not thousands).
+ */
+export async function readTree(): Promise<StackableTree> {
+  if (!IS_EXTENSION) return DEMO_TREE
+  const rootId = await ensureRoot()
+  const [root] = await chrome.bookmarks.getSubTree(rootId)
+  return mapTree(root)
+}
+
+// ---------- Nested stacks (0.8.0) ----------
+
+/** A stack and every sub-stack below it, depth first, in board order. */
+export function walkStacks(stacks: readonly Stack[]): Stack[] {
+  return stacks.flatMap((s) => [s, ...walkStacks(s.children ?? [])])
+}
+
+/** Every link in a stack, its sub-stacks' links included, in board order. */
+export function stackLinks(stack: Stack): Bookmark[] {
+  return [...stack.bookmarks, ...(stack.children ?? []).flatMap(stackLinks)]
+}
+
+/** Ids of a stack and everything below it: the places it cannot be moved into. */
+export function subtreeIds(stack: Stack): Set<string> {
+  return new Set(walkStacks([stack]).map((s) => s.id))
+}
+
+export interface StackLocation {
+  space: Space
+  stack: Stack
+  /** The stacks it sits in, outermost first ([] for a top-level stack). */
+  path: Stack[]
+}
+
+/** Where a stack (at any depth) lives. */
+export function locateStack(tree: StackableTree | null, id: string): StackLocation | null {
+  if (!tree) return null
+  const visit = (stacks: readonly Stack[], space: Space, path: Stack[]): StackLocation | null => {
+    for (const stack of stacks) {
+      if (stack.id === id) return { space, stack, path }
+      const found = visit(stack.children ?? [], space, [...path, stack])
+      if (found) return found
+    }
+    return null
+  }
+  for (const space of tree.spaces) {
+    const found = visit(space.stacks, space, [])
+    if (found) return found
+  }
+  return null
+}
+
+/** The stack (at any depth) holding a bookmark. */
+export function stackOfBookmark(tree: StackableTree | null, bookmarkId: string): Stack | null {
+  if (!tree) return null
+  for (const space of tree.spaces) {
+    for (const stack of walkStacks(space.stacks)) {
+      if (stack.bookmarks.some((b) => b.id === bookmarkId)) return stack
+    }
+  }
+  return null
 }
 
 // ---------- Spaces ----------
@@ -234,9 +310,10 @@ export async function moveSpace(id: string, newIndex: number): Promise<void> {
 
 // ---------- Stacks ----------
 
-export async function createStack(spaceId: string, title: string): Promise<string> {
+/** A new stack in a space, or a sub-stack when parentId is a stack. */
+export async function createStack(parentId: string, title: string): Promise<string> {
   if (!IS_EXTENSION) return 'demo-noop'
-  const node = await chrome.bookmarks.create({ parentId: spaceId, title })
+  const node = await chrome.bookmarks.create({ parentId, title })
   return node.id
 }
 
@@ -250,13 +327,16 @@ export async function deleteStack(id: string): Promise<void> {
   await chrome.bookmarks.removeTree(id)
 }
 
-export async function moveStack(
-  id: string,
-  newSpaceId: string,
-  newIndex: number,
-): Promise<void> {
+/**
+ * Moves a stack into a space (a top-level stack) or into another stack (a sub-stack).
+ * Without an index it goes last.
+ */
+export async function moveStack(id: string, newParentId: string, newIndex?: number): Promise<void> {
   if (!IS_EXTENSION) return
-  await chrome.bookmarks.move(id, { parentId: newSpaceId, index: newIndex })
+  await chrome.bookmarks.move(
+    id,
+    newIndex === undefined ? { parentId: newParentId } : { parentId: newParentId, index: newIndex },
+  )
 }
 
 // ---------- Bookmarks ----------
@@ -285,13 +365,13 @@ export async function deleteBookmark(id: string): Promise<void> {
   await chrome.bookmarks.remove(id)
 }
 
-export async function moveBookmark(
-  id: string,
-  newStackId: string,
-  newIndex: number,
-): Promise<void> {
+/** Moves a link into a stack at a folder index; without one it goes last. */
+export async function moveBookmark(id: string, newStackId: string, newIndex?: number): Promise<void> {
   if (!IS_EXTENSION) return
-  await chrome.bookmarks.move(id, { parentId: newStackId, index: newIndex })
+  await chrome.bookmarks.move(
+    id,
+    newIndex === undefined ? { parentId: newStackId } : { parentId: newStackId, index: newIndex },
+  )
 }
 
 // ---------- Undo ----------
@@ -299,6 +379,8 @@ export async function moveBookmark(
 // Everything needed to recreate a deleted node and its subtree in place. Chrome keeps no
 // bookmark trash, so the undo toast holds one of these for a few seconds after a delete.
 export interface NodeSnapshot {
+  /** The id it had, so per-item settings (colour, layout) can follow it to its new id. */
+  id?: string
   parentId: string
   index: number
   title: string
@@ -308,6 +390,7 @@ export interface NodeSnapshot {
 
 function toSnapshot(n: Node): NodeSnapshot {
   return {
+    id: n.id,
     parentId: n.parentId ?? '',
     index: n.index ?? 0,
     title: n.title,
@@ -328,24 +411,32 @@ export async function snapshotNode(id: string): Promise<NodeSnapshot | null> {
   return node ? toSnapshot(node) : null
 }
 
+/** Told about every node an undo recreates: its old id and its new one. */
+export type OnRestored = (oldId: string, newId: string) => void
+
 async function createFromSnapshot(
   s: NodeSnapshot,
   parentId: string,
-  index?: number,
+  index: number | undefined,
+  onRestored?: OnRestored,
 ): Promise<string> {
   const node = await chrome.bookmarks.create({ parentId, index, title: s.title, url: s.url })
+  if (s.id) onRestored?.(s.id, node.id)
   for (const child of s.children ?? []) {
-    await createFromSnapshot(child, node.id)
+    await createFromSnapshot(child, node.id, undefined, onRestored)
   }
   return node.id
 }
 
-/** Recreates a deleted node where it was. Returns the new id (ids never come back). */
-export async function restoreSnapshot(s: NodeSnapshot): Promise<string | null> {
+/**
+ * Recreates a deleted node and everything in it where it was. Returns the new id (ids never
+ * come back); onRestored hears each old id and its new one, sub-stacks and links included.
+ */
+export async function restoreSnapshot(s: NodeSnapshot, onRestored?: OnRestored): Promise<string | null> {
   if (!IS_EXTENSION) return null
   // Siblings may have been deleted since, so clamp the original index.
   const siblings = await chrome.bookmarks.getChildren(s.parentId)
-  return createFromSnapshot(s, s.parentId, Math.min(s.index, siblings.length))
+  return createFromSnapshot(s, s.parentId, Math.min(s.index, siblings.length), onRestored)
 }
 
 // ---------- Backup ----------
@@ -358,12 +449,24 @@ export async function exportBackup(): Promise<BookmarkBackup> {
     spaces: tree.spaces.map((s) => ({
       emoji: s.emoji,
       name: s.name,
-      stacks: s.stacks.map((st) => ({
-        name: st.title,
-        bookmarks: st.bookmarks.map((b) => ({ title: b.title, url: b.url })),
-      })),
+      // The v1 format has one level of stacks: a sub-stack goes in as "Parent › Child", the
+      // name the importer gives nested folders too.
+      stacks: flattenForBackup(s.stacks, ''),
     })),
   }
+}
+
+function flattenForBackup(
+  stacks: readonly Stack[],
+  prefix: string,
+): BookmarkBackup['spaces'][number]['stacks'] {
+  return stacks.flatMap((st) => {
+    const name = prefix + st.title
+    return [
+      { name, bookmarks: st.bookmarks.map((b) => ({ title: b.title, url: b.url })) },
+      ...flattenForBackup(st.children ?? [], `${name} › `),
+    ]
+  })
 }
 
 export async function importBackup(backup: BookmarkBackup): Promise<void> {

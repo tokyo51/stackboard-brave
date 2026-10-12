@@ -31,17 +31,23 @@ export function ModalHost() {
         />
       )
     case 'stack-add':
-      return <StackFormModal mode="add" spaceId={modal.spaceId} />
+      return (
+        <StackFormModal mode="add" spaceId={modal.spaceId} parentStackId={modal.parentStackId} parentTitle={modal.parentTitle} />
+      )
     case 'stack-edit':
       return <StackFormModal mode="edit" stackId={modal.id} initialTitle={modal.title} />
     case 'stack-move':
       return (
         <StackMoveModal
-          stackId={modal.id}
+          what="stack"
+          id={modal.id}
           title={modal.title}
           currentSpaceId={modal.currentSpaceId}
+          to={modal.to ?? 'space'}
         />
       )
+    case 'bookmark-move':
+      return <StackMoveModal what="bookmark" id={modal.id} title={modal.title} stackId={modal.stackId} />
     case 'bookmark-add':
       return <BookmarkFormModal mode="add" stackId={modal.stackId} />
     case 'bookmark-edit':

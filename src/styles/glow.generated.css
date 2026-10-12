@@ -33,3 +33,12 @@
 [data-scheme="dark"][data-palette="brave"] { --sb-glow: 0.55; }
 [data-scheme="light"][data-palette="aero"] { --sb-glow: 1; }
 [data-scheme="dark"][data-palette="aero"] { --sb-glow: 1; }
+[data-scheme="light"][data-palette="chrome"] { --sb-glow: 1; }
+[data-scheme="dark"][data-palette="chrome"] { --sb-glow: 1; }
+[data-scheme="light"][data-palette="bubblegum"] { --sb-glow: 1; }
+[data-scheme="dark"][data-palette="bubblegum"] { --sb-glow: 1; }
+[data-scheme="light"][data-palette="aqua"] { --sb-glow: 1; }
+[data-scheme="dark"][data-palette="aqua"] { --sb-glow: 1; }
+[data-scheme="dark"][data-palette="cyber"] { --sb-glow: 0.95; }
+[data-scheme="light"][data-palette="vista"] { --sb-glow: 0.8; }
+[data-scheme="dark"][data-palette="vista"] { --sb-glow: 1; }

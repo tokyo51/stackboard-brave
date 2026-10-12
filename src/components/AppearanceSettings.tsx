@@ -268,6 +268,10 @@ function panelClass(style: Style): string {
       return 'bg-panel shadow-sm ring-1 ring-line'
     case 'brave':
       return 'bg-card ring-1 ring-line'
+    case 'chrome':
+      return 'bg-linear-to-b from-card via-panel to-sunken ring-1 ring-line-strong shadow-xs'
+    case 'aqua':
+      return 'bg-card/80 ring-1 ring-line-strong shadow-xs'
     case 'terminal':
       return 'border border-dashed border-accent/60'
     case 'retro':
@@ -282,7 +286,7 @@ export function MiniBoard({ palette, scheme, look = {} }: { palette: PaletteId; 
   const style = look.style ?? 'flat'
   const radius = look.radius ?? 'soft'
   const d = DENSITY[look.density ?? 'comfortable']
-  const floatingSidebar = style === 'floating' || style === 'apple' || style === 'glass' || style === 'aero' || style === 'brave'
+  const floatingSidebar = ['floating', 'apple', 'glass', 'aero', 'brave', 'chrome', 'aqua'].includes(style)
   const terminal = style === 'terminal'
   const retro = style === 'retro'
   return (

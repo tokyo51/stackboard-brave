@@ -3,6 +3,8 @@ import type { Bookmark, Space, Stack, StackableTree } from './types'
 export interface SearchGroup {
   space: Space
   stack: Stack
+  /** The stacks this one sits in, outermost first; [] for a top-level stack (0.8.0). */
+  path: Stack[]
   hits: Bookmark[]
   best: number
 }
@@ -12,9 +14,10 @@ function escapeRegExp(s: string): string {
 }
 
 /**
- * Every term must match the bookmark's title, its URL, or the name of its stack or space
- * ("japan" lists the whole Japan stack). Word starts in the title rank highest. Groups come
- * back best-first, so groups[0].hits[0] is what Enter opens.
+ * Every term must match the bookmark's title, its URL, or the name of its stack, the stacks
+ * around it, or its space ("japan" lists the whole Japan stack, sub-stacks included). Word
+ * starts in the title rank highest. Groups come back best-first, so groups[0].hits[0] is what
+ * Enter opens. Sub-stacks are searched too, each as its own group.
  */
 export function searchTree(tree: StackableTree, query: string): SearchGroup[] {
   const terms = query.toLowerCase().split(/\s+/).filter(Boolean)
@@ -22,33 +25,35 @@ export function searchTree(tree: StackableTree, query: string): SearchGroup[] {
   const wordStart = terms.map((t) => new RegExp(`(^|[^\\p{L}\\p{N}])${escapeRegExp(t)}`, 'u'))
 
   const groups: SearchGroup[] = []
-  for (const space of tree.spaces) {
-    for (const stack of space.stacks) {
-      const where = `${space.name} ${stack.title}`.toLowerCase()
-      const scored: Array<{ bookmark: Bookmark; score: number }> = []
-      for (const bookmark of stack.bookmarks) {
-        const title = bookmark.title.toLowerCase()
-        const url = bookmark.url.toLowerCase()
-        let score = 0
-        let matched = true
-        for (let i = 0; i < terms.length; i++) {
-          const t = terms[i]
-          if (wordStart[i].test(title)) score += 4
-          else if (title.includes(t)) score += 3
-          else if (where.includes(t)) score += 2
-          else if (url.includes(t)) score += 1
-          else {
-            matched = false
-            break
-          }
+  const visit = (space: Space, stack: Stack, path: Stack[]) => {
+    const where = [space.name, ...path.map((p) => p.title), stack.title].join(' ').toLowerCase()
+    const scored: Array<{ bookmark: Bookmark; score: number }> = []
+    for (const bookmark of stack.bookmarks) {
+      const title = bookmark.title.toLowerCase()
+      const url = bookmark.url.toLowerCase()
+      let score = 0
+      let matched = true
+      for (let i = 0; i < terms.length; i++) {
+        const t = terms[i]
+        if (wordStart[i].test(title)) score += 4
+        else if (title.includes(t)) score += 3
+        else if (where.includes(t)) score += 2
+        else if (url.includes(t)) score += 1
+        else {
+          matched = false
+          break
         }
-        if (matched) scored.push({ bookmark, score })
       }
-      if (scored.length > 0) {
-        scored.sort((a, b) => b.score - a.score) // stable: stack order breaks ties
-        groups.push({ space, stack, hits: scored.map((s) => s.bookmark), best: scored[0].score })
-      }
+      if (matched) scored.push({ bookmark, score })
     }
+    if (scored.length > 0) {
+      scored.sort((a, b) => b.score - a.score) // stable: stack order breaks ties
+      groups.push({ space, stack, path, hits: scored.map((s) => s.bookmark), best: scored[0].score })
+    }
+    for (const child of stack.children ?? []) visit(space, child, [...path, stack])
+  }
+  for (const space of tree.spaces) {
+    for (const stack of space.stacks) visit(space, stack, [])
   }
   groups.sort((a, b) => b.best - a.best)
   return groups

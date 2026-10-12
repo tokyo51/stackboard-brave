@@ -13,9 +13,12 @@ import {
   DIM_MAX,
   PALETTES,
   PALETTE_TOKENS,
+  STYLES,
+  Y2K_STYLES,
   bootMirror,
   mergeAppearance,
   styleAttributes,
+  styleVars,
   onlyScheme,
   parseAppearance,
   resolveScheme,
@@ -24,10 +27,11 @@ import {
 } from '../src/lib/appearance'
 import { spaceIndexForKey } from '../src/lib/shortcuts'
 import { glyphOf } from '../src/lib/favicon'
-import { DEFAULT_WIDGETS, calculate, daysUntil, greeting, monthGrid, parseWidgets, progressOf, quoteIndexFor, resolveSearch, skyOf } from '../src/lib/widgets'
+import { CARD_ORDER, DEFAULT_WIDGETS, calculate, daysUntil, greeting, monthGrid, moveWidget, parseWidgets, progressOf, quoteIndexFor, resolveSearch, skyOf } from '../src/lib/widgets'
 import { readThemeFile, themeFile } from '../src/lib/themeFile'
 import { PRESETS } from '../src/lib/presets'
-import { GRADIENTS, PATTERNS, resolvedGlows, wallpaperSvg } from '../src/lib/backgrounds'
+import { GRADIENTS, PATTERNS, patternTile, resolvedGlows, wallpaperSvg } from '../src/lib/backgrounds'
+import { mergeWidgets } from '../src/store/useWidgets'
 import palettesCss from '../src/styles/palettes.css'
 import glowCss from '../src/styles/glow.generated.css'
 import { contrastRatio, gradientStops, mix, over, readPalettes } from './contrast'
@@ -277,7 +281,7 @@ eq('appearance: blur caps at its maximum', parseAppearance({ bg: { blur: 99 } })
 eq('appearance: gradient choice stays 1-9', [parseAppearance({ bg: { gradient: 0 } }).bg.gradient, parseAppearance({ bg: { gradient: 12 } }).bg.gradient, parseAppearance({ bg: { gradient: 2.4 } }).bg.gradient], [1, 9, 2])
 eq('appearance: numbers stored as text still read', parseAppearance({ bg: { dim: '42', blur: ' 6 ' } }).bg, { ...DEFAULT_APPEARANCE.bg, dim: 42, blur: 6 })
 eq('appearance: NaN and Infinity fall back', parseAppearance({ bg: { dim: NaN, blur: Infinity } }).bg, DEFAULT_APPEARANCE.bg)
-const picked = { ...DEFAULT_APPEARANCE, mode: 'dark', palette: 'nord', density: 'compact', bg: { kind: 'image', gradient: 2, dim: 50, blur: 8, imageRev: 1791200000000, pattern: 'waves', patternStrength: 60 }, style: 'glass', radius: 'round', font: 'mono', details: true, motion: { level: 'subtle', space: 'zoom', hover: 'tilt', entrance: 'stagger', ambient: 'aurora', spring: false } }
+const picked = { ...DEFAULT_APPEARANCE, mode: 'dark', palette: 'nord', density: 'compact', bg: { kind: 'image', gradient: 2, dim: 50, blur: 8, imageRev: 1791200000000, pattern: 'waves', patternStrength: 60 }, style: 'glass', radius: 'round', font: 'mono', details: true, motion: { level: 'subtle', space: 'zoom', hover: 'tilt', entrance: 'stagger', ambient: 'aurora', spring: false }, y2k: { gloss: 85, glow: 12, glowColor: 'mark', sparkles: true, reflections: true, pill: true } }
 eq('appearance: a full image setup survives a round trip', parseAppearance(JSON.parse(JSON.stringify(picked))), picked)
 eq('appearance: merging a slider keeps the rest of the background', mergeAppearance(parseAppearance(picked), { bg: { dim: 20 } }).bg, { ...picked.bg, dim: 20 })
 eq('appearance: merging clamps too', mergeAppearance(DEFAULT_APPEARANCE, { bg: { dim: 999 } }).bg.dim, DIM_MAX)
@@ -365,6 +369,95 @@ for (const b of blocks) {
 eq('backgrounds: palette gradients parse for the wallpaper export', resolvedGlows(1, (k) => blocks[0].tokens.get(k) ?? '').glows.length, 2)
 eq('backgrounds: unknown pattern falls back to none', parseAppearance({ bg: { pattern: 'paisley' } }).bg.pattern, 'none')
 eq('backgrounds: wallpaper SVG has the canvas, every glow and the pattern', (() => { const svg = wallpaperSvg({ width: 100, height: 50, canvas: '#101010', glows: [{ w: 50, h: 40, x: 0, y: 0, fade: 70, color: '#334455' }], pattern: PATTERNS[0], patternColor: '#ffffff', patternAlpha: 0.2, scale: 2 }); return [svg.includes('fill="#101010"'), svg.includes('stop-color="#334455"'), svg.includes('<pattern id="p"')] })(), [true, true, true])
+
+// ---------- Fork: Y2K looks ----------
+eq('y2k: the Y2K group has its six palettes', PALETTES.filter((p) => p.group === 'Y2K').map((p) => p.id), ['aero', 'chrome', 'bubblegum', 'aqua', 'cyber', 'vista'])
+eq('y2k: chrome and aqua are styles, and every Y2K style is one', [STYLES.includes('chrome'), STYLES.includes('aqua'), Y2K_STYLES.every((s) => STYLES.includes(s))], [true, true, true])
+eq(
+  'y2k: strengths are clamped, unknown glow colours and flags fall back',
+  parseAppearance({ y2k: { gloss: 180, glow: -20, glowColor: 'rainbow', sparkles: 'yes', reflections: 1, pill: true } }).y2k,
+  { ...DEFAULT_APPEARANCE.y2k, gloss: 100, glow: 0, pill: true },
+)
+eq('y2k: strengths stored as text still read', parseAppearance({ y2k: { gloss: '35', glow: ' 70 ' } }).y2k, { ...DEFAULT_APPEARANCE.y2k, gloss: 35, glow: 70 })
+eq('y2k: merging one option keeps the others', mergeAppearance(parseAppearance(picked), { y2k: { glow: 90 } }).y2k, { ...picked.y2k, glow: 90 })
+eq(
+  'y2k: options reach <html> as attributes and 0-1 strengths',
+  (() => {
+    const a = parseAppearance(picked)
+    const x = styleAttributes(a)
+    const v = styleVars(a)
+    return [x['data-y2k-glow'], x['data-y2k-sparkles'], x['data-y2k-reflect'], x['data-y2k-pill'], v['--sb-y2k-gloss'], v['--sb-y2k-glow']]
+  })(),
+  ['mark', 'on', 'on', 'on', '0.85', '0.12'],
+)
+eq(
+  'boot: every attribute and variable name passes the filters in theme-boot.js',
+  (() => {
+    const m = bootMirror(parseAppearance(picked))
+    return [Object.keys(m.attrs).filter((k) => !/^data-[a-z0-9-]+$/.test(k)), Object.keys(m.vars).filter((k) => !/^--sb-[a-z0-9-]+$/.test(k))]
+  })(),
+  [[], []],
+)
+eq('theme file: the Y2K options travel with the look', readThemeFile(JSON.parse(JSON.stringify(themeFile(parseAppearance(picked)))))?.y2k, picked.y2k)
+{
+  const y2k = PRESETS.filter((p) => p.group === 'y2k')
+  eq('presets: every Y2K palette has a Y2K preset', PALETTES.filter((p) => p.group === 'Y2K').map((p) => p.id).filter((id) => !y2k.some((p) => p.patch.palette === id)), [])
+  eq('presets: the Y2K presets use a Y2K style', y2k.filter((p) => !Y2K_STYLES.includes(p.patch.style!)).map((p) => p.id), [])
+  eq('presets: the Y2K presets ask for the new ids', ['y2k-chrome', 'bubblegum', 'aqua', 'cyber-y2k', 'vista', 'aero'].filter((id) => !y2k.some((p) => p.id === id)), [])
+  eq('presets: ids are unique', new Set(PRESETS.map((p) => p.id)).size, PRESETS.length)
+}
+eq('backgrounds: the Y2K patterns can be picked', ['pinstripes', 'checker', 'y2kstars', 'hearts', 'butterflies', 'orbs'].map((id) => parseAppearance({ bg: { pattern: id } }).bg.pattern), ['pinstripes', 'checker', 'y2kstars', 'hearts', 'butterflies', 'orbs'])
+eq(
+  'backgrounds: a coloured tile fills every filled shape and strokes every outline',
+  PATTERNS.filter((p) => /<(circle|path|ellipse|rect)(?![^>]*fill=)/.test(patternTile(p, '#123456')) || patternTile(p, '#123456').includes('#000')).map((p) => p.id),
+  [],
+)
+
+// Widget colours: the header capsule is --item-pill (the tint at 80% over the card, items.css) and
+// all its text is the strongest text colour; the header icon is the tint's own fg (3:1).
+{
+  const misses: string[] = []
+  for (const b of blocks) {
+    const t = (k: string) => (b.tokens.get(k) ?? '#ff00ff').slice(0, 7)
+    const pairs: Array<[string, string]> = [...Array.from({ length: 8 }, (_, i) => [`tint-${i}-bg`, `tint-${i}-fg`] as [string, string]), ['danger-soft', 'danger'], ['accent-soft', 'accent-text']]
+    for (const [bg, fg] of pairs) {
+      const pill = mix(t(bg), t('card'), 0.8)
+      if (contrastRatio(t('strong'), pill) < 4.5) misses.push(`${b.palette}/${b.scheme} strong on ${bg} pill ${round2(contrastRatio(t('strong'), pill))}`)
+      if (contrastRatio(t(fg), pill) < 3) misses.push(`${b.palette}/${b.scheme} ${fg} icon on ${bg} pill ${round2(contrastRatio(t(fg), pill))}`)
+    }
+  }
+  eq('widget colours: header text and icon stay AA on every colour pill', misses, [])
+}
+
+// Widget order and clock settings.
+eq('widgets: the order always holds every card once', DEFAULT_WIDGETS.order, [...CARD_ORDER])
+eq(
+  'widgets: a stored order keeps its known cards, drops the rest, adds the missing',
+  parseWidgets({ order: ['quote', 'nope', 'todo', 'quote', 'clock'] }).order,
+  ['quote', 'todo', ...CARD_ORDER.filter((id) => id !== 'quote' && id !== 'todo')],
+)
+eq('widgets: an order that is not a list gives the default', parseWidgets({ order: 'todo' }).order, [...CARD_ORDER])
+{
+  const order = [...CARD_ORDER]
+  const shown = ['todo', 'calendar', 'quote', 'progress'] as const
+  eq('widgets: move later swaps with the next card on screen, hidden ones stay put', moveWidget(order, 'todo', 1, shown), ['calendar', 'notes', 'weather', 'todo', 'quote', 'pomodoro', 'countdown', 'progress', 'topsites', 'calculator'])
+  eq('widgets: move earlier', moveWidget(order, 'progress', -1, shown), ['todo', 'notes', 'weather', 'calendar', 'progress', 'pomodoro', 'countdown', 'quote', 'topsites', 'calculator'])
+  eq('widgets: nothing moves past either end', [moveWidget(order, 'todo', -1, shown), moveWidget(order, 'progress', 1, shown)], [order, order])
+  eq('widgets: a hidden card does not move', moveWidget(order, 'notes', 1, shown), order)
+  eq('widgets: a moved order survives storage', parseWidgets(JSON.parse(JSON.stringify({ order: moveWidget(order, 'todo', 1, shown) }))).order, moveWidget(order, 'todo', 1, shown))
+}
+eq(
+  'clock: unknown position, size, font and effect fall back; flags must be true or false',
+  parseWidgets({ clock: { position: 'top', size: 'xxl', font: 'comic', effect: 'fire', greeting: 'no', blink: true } }).clock,
+  { ...DEFAULT_WIDGETS.clock, blink: true },
+)
+{
+  const clock = { position: 'center', size: 'xl', font: 'serif', effect: 'neon', hoverGlow: true, blink: true, greeting: false, date: false, seconds: true, h24: false }
+  eq('clock: a full setup survives a round trip', parseWidgets(JSON.parse(JSON.stringify({ clock }))).clock, clock)
+  eq('clock: merging one option keeps the others', mergeWidgets(parseWidgets({ clock }), { clock: { size: 's' } }).clock, { ...clock, size: 's' })
+}
+eq('clock: 24-hour and seconds from before the clock settings carry over', (() => { const c = parseWidgets({ h24: false, seconds: true }).clock; return [c.h24, c.seconds] })(), [false, true])
+eq('clock: the clock settings win over the old top-level ones', (() => { const c = parseWidgets({ h24: false, clock: { h24: true } }).clock; return c.h24 })(), true)
 
 console.log(fails ? `\n${fails} FAILED` : '\nALL PASS')
 process.exit(fails ? 1 : 0)

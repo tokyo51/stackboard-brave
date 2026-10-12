@@ -2,6 +2,7 @@ import { ExternalLink } from 'lucide-react'
 import type { Space } from '../lib/types'
 import { openAllInTabs } from '../lib/tabs'
 import { useTwoStep } from '../hooks/useTwoStep'
+import { stackLinks } from '../lib/bookmarks'
 
 interface Props {
   space: Space
@@ -9,8 +10,9 @@ interface Props {
 
 export function OpenTabsButton({ space }: Props) {
   const confirmStep = useTwoStep()
-  const count = space.stacks.reduce((acc, st) => acc + st.bookmarks.length, 0)
-  const allBookmarks = space.stacks.flatMap((st) => st.bookmarks)
+  // Sub-stacks' links count too (0.8.0).
+  const allBookmarks = space.stacks.flatMap(stackLinks)
+  const count = allBookmarks.length
 
   const onClick = async () => {
     if (count === 0) return

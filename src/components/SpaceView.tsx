@@ -1,15 +1,22 @@
 import { useState } from 'react'
-import { useStackableStore } from '../store/useStackableStore'
+import { BOARD, setCollapsed, useStackableStore } from '../store/useStackableStore'
+import { useItemMeta } from '../store/useItemMeta'
 import { useWidgets } from '../store/useWidgets'
 import { WidgetCards, WidgetHero } from './Widgets'
+import { useDroppable } from '@dnd-kit/core'
 import { SortableContext, rectSortingStrategy } from '@dnd-kit/sortable'
-import { Download, Check, LayoutDashboard } from 'lucide-react'
+import { Download, Check, ChevronsDownUp, ChevronsUpDown, LayoutDashboard } from 'lucide-react'
 import type { Space } from '../lib/types'
 import { StackColumn } from './StackColumn'
 import { AddStackPlaceholder } from './AddStackPlaceholder'
 import { OpenTabsButton } from './OpenTabsButton'
-import { exportBackup } from '../lib/bookmarks'
+import { exportBackup, walkStacks } from '../lib/bookmarks'
 import { downloadJson } from '../lib/tabs'
+
+/** Every stack and sub-stack id in a space: what Collapse all and Expand all act on. */
+export function spaceStackIds(space: Space): string[] {
+  return walkStacks(space.stacks).map((s) => s.id)
+}
 
 interface Props {
   space: Space
@@ -19,6 +26,11 @@ export function SpaceView({ space }: Props) {
   const [copied, setCopied] = useState(false)
   const widgetsHidden = useWidgets((s) => s.settings.collapsed)
   const updateWidgets = useWidgets((s) => s.update)
+  // One button folds every stack in the space, or opens them all again once nothing is open.
+  const allFolded = useItemMeta((s) => space.stacks.length > 0 && space.stacks.every((st) => s.meta[st.id]?.collapsed))
+  // The board takes a sub-stack dropped on it: it becomes a stack of its own (0.8.0).
+  const { setNodeRef: setGridNode } = useDroppable({ id: `grid:${space.id}`, data: { type: 'grid', spaceId: space.id } })
+  const unnesting = useStackableStore((s) => s.dropInto === BOARD)
 
   const onExport = async () => {
     const backup = await exportBackup().catch((err) => {
@@ -53,6 +65,17 @@ export function SpaceView({ space }: Props) {
             <h1 className="truncate text-2xl font-bold text-strong">{space.name}</h1>
           </div>
           <div className="flex shrink-0 items-center gap-1.5">
+            {space.stacks.length > 0 && (
+              <button
+                onClick={() => setCollapsed(spaceStackIds(space), !allFolded)}
+                aria-label={allFolded ? 'Expand all stacks' : 'Collapse all stacks'}
+                title={allFolded ? 'Expand all' : 'Collapse all'}
+                data-collapse-all
+                className={`${quiet} text-muted`}
+              >
+                {allFolded ? <ChevronsUpDown className="h-4 w-4" /> : <ChevronsDownUp className="h-4 w-4" />}
+              </button>
+            )}
             <button
               onClick={() => updateWidgets({ collapsed: !widgetsHidden })}
               aria-pressed={!widgetsHidden}
@@ -77,7 +100,9 @@ export function SpaceView({ space }: Props) {
         <WidgetHero />
         <SortableContext items={space.stacks.map((s) => `st:${s.id}`)} strategy={rectSortingStrategy}>
           <div
+            ref={setGridNode}
             data-stack-grid
+            data-unnest={unnesting ? '' : undefined}
             className="grid grid-cols-[repeat(auto-fill,minmax(244px,1fr))] items-start gap-x-6 gap-y-7 compact:grid-cols-[repeat(auto-fill,minmax(212px,1fr))] compact:gap-x-4 compact:gap-y-5 wallpaper:gap-y-6 compact:wallpaper:gap-y-4"
           >
             {space.stacks.map((stack, i) => (

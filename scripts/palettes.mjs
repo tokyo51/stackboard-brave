@@ -174,6 +174,44 @@ const P = [
       dark: { canvas: '#06182b', panel: '#0a2138', card: '#0e2a45', raised: '#123354', strong: '#eaf7ff', fg: '#cfe9fb', muted: '#8fb6d1', accent: '#38b6ff', accent2: '#7ed957', mark: '#7ed957', red: '#ff6b6b',
         hues: ['#ffb347', '#ffe066', '#7ed957', '#4fe3e8', '#38b6ff', '#9d8cff', '#ff85c0', '#8fb6d1'], grads: [['#1a6fb5', '#2f8f3a'], ['#127a9e', '#1a4fb5'], ['#2b79c2', '#4fa83a']] },
     } },
+  // Y2K metallic: brushed silver and gunmetal, ice blue, a cyan chrome highlight.
+  { id: 'chrome', name: 'Chrome', group: 'Y2K', light: 'Chrome Silver', dark: 'Chrome Gunmetal',
+    v: {
+      light: { canvas: '#e6eaef', panel: '#eef1f5', card: '#fbfcfd', raised: '#ffffff', strong: '#0c141e', fg: '#1c2633', muted: '#4a5767', accent: '#2c6fd1', accent2: '#8aa9c9', mark: '#00a6d6', red: '#c8312f',
+        hues: ['#d9772b', '#b8962a', '#3f9a52', '#1a9aa6', '#2c6fd1', '#7465cf', '#cf4f93', '#7a8796'], grads: [['#bcd3ec', '#d7dee6'], ['#c9dcf0', '#b9c6d4'], ['#d3e3f3', '#c4ccd6']] },
+      dark: { canvas: '#111519', panel: '#0c0f12', card: '#1a1f25', raised: '#222830', strong: '#f3f7fb', fg: '#d4dce6', muted: '#9aa7b6', accent: '#8cc8ff', accent2: '#b9c6d6', mark: '#7fe6ff', red: '#ff6e6e',
+        hues: ['#ffad6b', '#f2d36b', '#7fd88f', '#6fdbe0', '#8cc8ff', '#b3a6ff', '#ff94c8', '#a7b3c1'], grads: [['#3a5068', '#4a525c'], ['#2f4a63', '#3c4652'], ['#45586c', '#2c3743']] },
+    } },
+  // 2000s pop: bubblegum pink, lilac and baby blue.
+  { id: 'bubblegum', name: 'Bubblegum', group: 'Y2K', light: 'Bubblegum Pop', dark: 'Bubblegum Night',
+    v: {
+      light: { canvas: '#ffeef6', panel: '#fff5fa', card: '#ffffff', strong: '#3b0f30', fg: '#4c1a41', muted: '#7d4870', accent: '#d63384', accent2: '#9a7cf0', mark: '#58b6f2', red: '#c8233b',
+        hues: ['#f08a4b', '#e8b923', '#4fbf86', '#3bbfcf', '#58b6f2', '#9a7cf0', '#ff5fa8', '#a07d98'], grads: [['#ffc2df', '#d9ccff'], ['#bfe3ff', '#ffc9e4'], ['#e6d4ff', '#c8ecff']] },
+      dark: { canvas: '#22122a', panel: '#1b0d21', card: '#2e1a37', raised: '#382143', strong: '#fff1fa', fg: '#f7dcef', muted: '#cba6c6', accent: '#ff8cc6', accent2: '#c5a8ff', mark: '#8fd4ff', red: '#ff6b85',
+        hues: ['#ffaa7a', '#ffd86b', '#7fe0ae', '#78e0ea', '#8fd4ff', '#c5a8ff', '#ff8cc6', '#c9a9c4'], grads: [['#6e2a5c', '#4b3a8a'], ['#2f4f86', '#6b2c63'], ['#583a8c', '#2c5b80']] },
+    } },
+  // Mac OS X Aqua: pinstripe white, the gel button blue, traffic lights.
+  { id: 'aqua', name: 'Aqua', group: 'Y2K', light: 'Aqua', dark: 'Aqua Graphite',
+    v: {
+      light: { canvas: '#eef1f5', panel: '#e6eaf0', card: '#ffffff', raised: '#ffffff', strong: '#0a1628', fg: '#1a283a', muted: '#4b5a6c', accent: '#1f6fe0', accent2: '#5fb2ff', mark: '#28b4ff', red: '#d83a33',
+        hues: ['#f39c1f', '#d9a400', '#2fae45', '#18a6b8', '#1f6fe0', '#7a5ce0', '#e0457b', '#8090a3'], grads: [['#c9e1fb', '#e1e8f0'], ['#d6ebff', '#c5d3e3'], ['#bfe0ff', '#dfe6ee']] },
+      dark: { canvas: '#0e1622', panel: '#0a1019', card: '#15202d', raised: '#1b2836', strong: '#eef5ff', fg: '#d0e0f2', muted: '#93a8c0', accent: '#5aaaff', accent2: '#9cd0ff', mark: '#6fd6ff', red: '#ff6a62',
+        hues: ['#ffb44d', '#ffd84d', '#5fd877', '#55d4e3', '#5aaaff', '#a58dff', '#ff7fa8', '#9aabbd'], grads: [['#1d4e86', '#2a3a50'], ['#1a5a8a', '#22324a'], ['#244f7f', '#1d2e44']] },
+    } },
+  // Cyber Y2K: near-black, neon cyan and lime, chrome grey.
+  { id: 'cyber', name: 'Cyber', group: 'Y2K', dark: 'Cyber Y2K',
+    v: {
+      dark: { canvas: '#07090c', panel: '#050608', card: '#10141a', raised: '#161b23', strong: '#f4fbff', fg: '#dbe5ec', muted: '#8e9ca8', accent: '#00eaff', accent2: '#b8ff1f', mark: '#b8ff1f', red: '#ff3d5e',
+        hues: ['#ff9e2c', '#f2ff3d', '#b8ff1f', '#00eaff', '#4d8dff', '#b46bff', '#ff3fb4', '#a3adb6'], grads: [['#00596a', '#3a5a00'], ['#004f66', '#2b3540'], ['#3d6600', '#004b5c']] },
+    } },
+  // Windows Vista and 7: Aero glass over teal-black, and the sky blue of the Basic theme.
+  { id: 'vista', name: 'Vista', group: 'Y2K', light: 'Vista Sky', dark: 'Vista Aero',
+    v: {
+      light: { canvas: '#e3f1fa', panel: '#eef7fc', card: '#ffffff', strong: '#05202e', fg: '#0f3345', muted: '#3a6476', accent: '#1679bf', accent2: '#1fa79a', mark: '#38bdf0', red: '#cc3a2f',
+        hues: ['#ef8a2d', '#d1a51d', '#45a83b', '#1fa79a', '#1679bf', '#6b5fd0', '#d34a8a', '#6f8c9b'], grads: [['#a9dcf5', '#c4ece5'], ['#bfe6f7', '#a8cfe8'], ['#c9eef0', '#b4d9f2']] },
+      dark: { canvas: '#081417', panel: '#061012', card: '#0f2127', raised: '#142b33', strong: '#effbff', fg: '#d0e9f0', muted: '#8db2bd', accent: '#36b5ea', accent2: '#3fd0c0', mark: '#7fe1ff', red: '#ff6158',
+        hues: ['#ffad5c', '#ffd85c', '#7fdc6f', '#3fd0c0', '#36b5ea', '#9b8cff', '#ff7fb2', '#8db2bd'], grads: [['#11566b', '#0f5f57'], ['#0e4a66', '#134a44'], ['#1a6577', '#0c3f52']] },
+    } },
 ]
 
 // ---------- derivation ----------

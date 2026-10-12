@@ -1,0 +1,581 @@
+/* Fork: the Y2K looks (Settings > Style).
+ *
+ * Aero (styles.css, tuned here), Chrome and Aqua, and the options all three read from
+ * appearance.y2k (lib/appearance.ts puts them on <html>):
+ *   --sb-y2k-gloss, --sb-y2k-glow   0-1 strengths
+ *   data-y2k-glow                   accent | brand | mark | white
+ *   data-y2k-sparkles / -reflect / -pill   on | off
+ * Liquid glass takes gloss and glow lightly. Clock looks and widget design states are in
+ * widgets.css.
+ *
+ * Imported last in index.css and unlayered, so it wins over styles.css, native.css and
+ * polish.css at equal specificity. Every rule is scoped to a data-style. Highlights are white:
+ * in light schemes that only lifts the surface behind dark text; in dark schemes they stay faint
+ * and sit on rims and header tops, so text keeps its contrast. Never a transform on
+ * [data-surface="card"] or [data-surface="stack"]: dnd-kit moves them with inline transforms.
+ */
+@import "./widgets.css";
+
+/* ---------- Shared Y2K tokens ---------- */
+:root {
+  --sb-y2k-gloss: 0.6;
+  --sb-y2k-glow: 0.4;
+  --y2k-glow-c: var(--sb-accent);
+  /* Highlights: the bright top of a gloss, its soft tail, and the 1px rim light. */
+  --y2k-hi: rgb(255 255 255 / calc(var(--sb-y2k-gloss) * 0.95));
+  --y2k-hi-soft: rgb(255 255 255 / calc(var(--sb-y2k-gloss) * 0.32));
+  --y2k-rim: rgb(255 255 255 / calc(0.3 + var(--sb-y2k-gloss) * 0.65));
+  --y2k-sweep: rgb(255 255 255 / calc(var(--sb-y2k-gloss) * 0.6));
+  /* The outer halo, in the chosen glow colour. */
+  --y2k-halo: 0 0 calc(2px + var(--sb-y2k-glow) * 34px) calc(var(--sb-y2k-glow) * 2px)
+    color-mix(in srgb, var(--y2k-glow-c) calc(var(--sb-y2k-glow) * 60%), transparent);
+  --y2k-radius-cap: var(--radius-lg);
+  /* A four-point star with pinched sides (lib/backgrounds.ts draws the same one). */
+  --y2k-star: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='white' d='M12 0Q13.7 10.3 24 12Q13.7 13.7 12 24Q10.3 13.7 0 12Q10.3 10.3 12 0Z'/%3E%3C/svg%3E");
+}
+:root[data-scheme="dark"] {
+  --y2k-hi: rgb(255 255 255 / calc(var(--sb-y2k-gloss) * 0.26));
+  --y2k-hi-soft: rgb(255 255 255 / calc(var(--sb-y2k-gloss) * 0.07));
+  --y2k-rim: rgb(255 255 255 / calc(0.06 + var(--sb-y2k-gloss) * 0.2));
+  --y2k-sweep: rgb(255 255 255 / calc(var(--sb-y2k-gloss) * 0.12));
+}
+:root[data-y2k-glow="brand"] {
+  --y2k-glow-c: var(--sb-brand-to);
+}
+:root[data-y2k-glow="mark"] {
+  --y2k-glow-c: var(--sb-accent-mark);
+}
+:root[data-y2k-glow="white"] {
+  --y2k-glow-c: #ffffff;
+}
+:root[data-y2k-pill="on"]:is([data-style="aero"], [data-style="chrome"], [data-style="aqua"]) {
+  --y2k-radius-cap: 9999px;
+}
+
+/* The pane styles are the box themselves: no inner well (polish.css item 16 does the same for
+   glass, aero and floating). */
+:root:is([data-style="chrome"], [data-style="aqua"]) {
+  --sb-well-pad: 0px;
+}
+:root:is([data-style="chrome"], [data-style="aqua"]) [data-surface="stack"] > [data-stack-list] {
+  padding: 0;
+}
+:root:is([data-style="chrome"], [data-style="aqua"]) [data-surface="stack"] > [data-stack-list]:not([data-over]) {
+  background: transparent;
+  border-color: transparent;
+}
+:root:is([data-style="aero"], [data-style="chrome"], [data-style="aqua"]) :is([data-surface="stack"], [data-surface="widget"]) {
+  position: relative;
+}
+
+/* ---------- Aero: gloss and glow from the Y2K options ---------- */
+:root[data-style="aero"] {
+  --sb-gloss: rgb(255 255 255 / calc(var(--sb-y2k-gloss) * 0.92));
+  --sb-gloss-soft: rgb(255 255 255 / calc(var(--sb-y2k-gloss) * 0.3));
+}
+:root[data-scheme="dark"][data-style="aero"] {
+  --sb-gloss: rgb(255 255 255 / calc(var(--sb-y2k-gloss) * 0.27));
+  --sb-gloss-soft: rgb(255 255 255 / calc(var(--sb-y2k-gloss) * 0.08));
+}
+:root[data-style="aero"] :is([data-surface="stack"], [data-surface="widget"]) {
+  box-shadow:
+    inset 0 1px 0 var(--y2k-rim),
+    0 12px 32px -14px color-mix(in srgb, var(--sb-accent) 45%, transparent),
+    var(--y2k-halo);
+}
+:root[data-scheme="dark"][data-style="aero"] :is([data-surface="stack"], [data-surface="widget"]) {
+  box-shadow:
+    inset 0 1px 0 var(--y2k-rim),
+    0 12px 32px -14px color-mix(in srgb, var(--sb-accent) 40%, transparent),
+    var(--y2k-halo);
+}
+:root[data-style="aero"] .bg-accent:not([aria-hidden], [aria-hidden] *) {
+  background-image: linear-gradient(180deg, rgb(255 255 255 / calc(var(--sb-y2k-gloss) * 0.7)), rgb(255 255 255 / calc(var(--sb-y2k-gloss) * 0.12)) 34%, transparent 36%);
+}
+/* Pill: headers become soft glass capsules. */
+:root[data-style="aero"][data-y2k-pill="on"] :is([data-surface="stack"] > [data-stack-head], [data-surface="widget"] > header) {
+  padding-block: 5px;
+  border-radius: 9999px;
+  background:
+    linear-gradient(180deg, var(--y2k-hi) 0%, var(--y2k-hi-soft) 48%, transparent 52%),
+    radial-gradient(70% 90% at 50% 130%, color-mix(in srgb, var(--sb-brand-to) 26%, transparent), transparent 70%),
+    var(--sb-accent-soft);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--sb-accent) 28%, transparent),
+    inset 0 1px 0 rgb(255 255 255 / 0.7),
+    0 1px 3px color-mix(in srgb, var(--sb-accent) 28%, transparent);
+}
+:root[data-scheme="dark"][data-style="aero"][data-y2k-pill="on"] :is([data-surface="stack"] > [data-stack-head], [data-surface="widget"] > header) {
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, #fff 12%, transparent),
+    0 1px 2px rgb(0 0 0 / 0.3);
+}
+:root[data-style="aero"][data-y2k-pill="on"] [data-surface="widget"] > header {
+  margin-inline: calc(var(--sb-inset) - 10px);
+  padding-inline: 10px;
+}
+
+/* ---------- Glass takes gloss and glow lightly ---------- */
+:root[data-style="glass"] :is([data-surface="stack"], [data-surface="widget"])::before {
+  background: linear-gradient(140deg, rgb(255 255 255 / calc(var(--sb-y2k-gloss) * 0.33)), transparent 42%);
+}
+:root[data-style="glass"] :is([data-surface="stack"], [data-surface="widget"]) {
+  box-shadow:
+    inset 0 1px 0 0 color-mix(in srgb, #fff 32%, transparent),
+    inset 0 0 0 1px color-mix(in srgb, #fff 12%, transparent),
+    0 24px 48px -28px color-mix(in srgb, var(--sb-shade) 60%, transparent),
+    0 0 calc(var(--sb-y2k-glow) * 26px) color-mix(in srgb, var(--y2k-glow-c) calc(var(--sb-y2k-glow) * 22%), transparent);
+}
+
+/* ---------- Chrome: brushed metal panes in a polished bezel, a sweep of light ---------- */
+:root[data-style="chrome"] {
+  --chrome-top: color-mix(in srgb, #fff 62%, var(--sb-panel));
+  --chrome-mid: var(--sb-panel);
+  /* Never darker than the sunken token, so muted text keeps AA on every palette. */
+  --chrome-low: color-mix(in srgb, var(--sb-sunken) 65%, var(--sb-panel));
+  --chrome-foot: color-mix(in srgb, #fff 34%, var(--sb-panel));
+  --chrome-edge: color-mix(in srgb, var(--sb-strong) 20%, transparent);
+  --chrome-bevel-hi: rgb(255 255 255 / 0.95);
+  --chrome-bevel-lo: rgb(0 0 0 / 0.08);
+  /* Brushed grain: two periods of fine light streaks, so it never reads as a pattern. */
+  --chrome-grain:
+    repeating-linear-gradient(180deg, rgb(255 255 255 / 0.32) 0 1px, transparent 1px 3px),
+    repeating-linear-gradient(180deg, transparent 0 4px, rgb(255 255 255 / 0.22) 4px 5px, transparent 5px 11px);
+  /* The polished bezel: lit silver at the top running down to a darker steel at the foot.
+     Chrome is chrome whatever the palette. */
+  --chrome-rim: linear-gradient(170deg, #ffffff 0%, #e4e9ef 22%, #c3cbd5 62%, #9aa5b2 100%);
+  /* The raised capsule on headers: bright top, a horizon through the middle, a lit foot. */
+  --chrome-cap:
+    linear-gradient(180deg, #fff 0%, color-mix(in srgb, #fff 62%, var(--sb-panel)) 46%, color-mix(in srgb, var(--sb-strong) 9%, var(--sb-panel)) 50%, color-mix(in srgb, #fff 45%, var(--sb-panel)) 100%);
+}
+:root[data-scheme="dark"][data-style="chrome"] {
+  /* Gunmetal: between card and raised only, so light text keeps its contrast. */
+  --chrome-top: var(--sb-raised);
+  --chrome-mid: var(--sb-card);
+  --chrome-low: color-mix(in srgb, var(--sb-panel) 45%, var(--sb-card));
+  --chrome-foot: color-mix(in srgb, var(--sb-raised) 70%, var(--sb-card));
+  --chrome-edge: rgb(255 255 255 / 0.13);
+  --chrome-bevel-hi: rgb(255 255 255 / 0.16);
+  --chrome-bevel-lo: rgb(0 0 0 / 0.55);
+  --chrome-grain:
+    repeating-linear-gradient(180deg, rgb(255 255 255 / 0.025) 0 1px, transparent 1px 3px),
+    repeating-linear-gradient(180deg, transparent 0 4px, rgb(255 255 255 / 0.02) 4px 5px, transparent 5px 11px);
+  --chrome-rim: linear-gradient(170deg, #9aa5b2 0%, #5a6470 26%, #2e353d 64%, #1b2026 100%);
+  --chrome-cap:
+    linear-gradient(180deg, color-mix(in srgb, #fff 7%, var(--sb-raised)) 0%, var(--sb-raised) 48%, var(--sb-card) 52%, color-mix(in srgb, var(--sb-raised) 60%, var(--sb-card)) 100%);
+}
+:root[data-style="chrome"] :is([data-surface="stack"], [data-surface="widget"]) {
+  isolation: isolate;
+  border: 2px solid transparent;
+  border-radius: var(--radius-2xl);
+  padding: 0.625rem;
+  background:
+    linear-gradient(180deg, var(--y2k-hi-soft), transparent 72px) padding-box,
+    var(--chrome-grain) padding-box,
+    linear-gradient(180deg, var(--chrome-top) 0%, var(--chrome-mid) 28%, var(--chrome-low) 74%, var(--chrome-foot) 100%) padding-box,
+    var(--chrome-rim) border-box;
+  box-shadow:
+    inset 0 1px 0 var(--chrome-bevel-hi),
+    inset 0 -1px 0 var(--chrome-bevel-lo),
+    0 1px 1px rgb(0 0 0 / 0.1),
+    0 16px 32px -20px color-mix(in srgb, var(--sb-shade) 60%, transparent),
+    var(--y2k-halo);
+}
+:root[data-scheme="dark"][data-style="chrome"] :is([data-surface="stack"], [data-surface="widget"]) {
+  box-shadow:
+    inset 0 1px 0 var(--chrome-bevel-hi),
+    inset 0 -1px 0 var(--chrome-bevel-lo),
+    0 18px 36px -20px rgb(0 0 0 / 0.7),
+    var(--y2k-halo);
+}
+/* The sidebar is a tall sheet of brushed metal with a polished edge. */
+:root[data-style="chrome"] [data-surface="sidebar"] {
+  border-right: 2px solid transparent;
+  background:
+    linear-gradient(180deg, var(--y2k-hi-soft), transparent 120px) padding-box,
+    var(--chrome-grain) padding-box,
+    linear-gradient(180deg, var(--chrome-top) 0, var(--chrome-mid) 140px, var(--chrome-low) 70%, var(--chrome-foot) 100%) padding-box,
+    linear-gradient(90deg, #8f9aa7, #ffffff) border-box;
+}
+:root[data-scheme="dark"][data-style="chrome"] [data-surface="sidebar"] {
+  background:
+    linear-gradient(180deg, var(--y2k-hi-soft), transparent 120px) padding-box,
+    var(--chrome-grain) padding-box,
+    linear-gradient(180deg, var(--chrome-top) 0, var(--chrome-mid) 140px, var(--chrome-low) 70%, var(--chrome-foot) 100%) padding-box,
+    linear-gradient(90deg, #1d2229, #6f7a87) border-box;
+}
+/* The sweep: a diagonal band of light crossing each pane in turn, then resting. */
+:root[data-style="chrome"] :is([data-surface="stack"], [data-surface="widget"])::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  pointer-events: none;
+  background: linear-gradient(112deg, transparent 40%, var(--y2k-sweep) 49%, transparent 58%) no-repeat;
+  background-size: 260% 100%;
+  background-position: 120% 0;
+}
+@media (prefers-reduced-motion: no-preference) {
+  :root[data-style="chrome"]:not([data-motion="off"]) :is([data-surface="stack"], [data-surface="widget"])::before {
+    animation: y2k-sweep calc(12s / var(--sb-tempo)) cubic-bezier(0.45, 0, 0.25, 1) infinite;
+    animation-delay: calc(1.5s + min(var(--i, 0), 14) * 0.22s);
+  }
+}
+@keyframes y2k-sweep {
+  0% {
+    background-position: 120% 0;
+  }
+  26%,
+  100% {
+    background-position: -20% 0;
+  }
+}
+/* Headers: a raised chrome capsule in its own bezel, the title engraved into it. All of its text
+   is the strongest colour: the horizon is a shade darker than the panel. */
+:root[data-style="chrome"] :is([data-surface="stack"] > [data-stack-head], [data-surface="widget"] > header) {
+  padding-block: 5px;
+  border: 1px solid transparent;
+  border-radius: var(--y2k-radius-cap);
+  background:
+    var(--chrome-cap) padding-box,
+    var(--chrome-rim) border-box;
+  box-shadow:
+    inset 0 1px 0 var(--chrome-bevel-hi),
+    0 1px 2px rgb(0 0 0 / 0.12);
+}
+:root[data-style="chrome"] [data-surface="widget"] > header {
+  margin-inline: calc(var(--sb-inset) - 10px);
+  padding-inline: 10px;
+}
+:root[data-style="chrome"] :is([data-stack-head], [data-surface="widget"] > header) :is(h3, span, button, svg):not(.bg-accent, .bg-accent *) {
+  color: var(--sb-strong);
+}
+:root[data-style="chrome"] :is([data-stack-head] h3, [data-surface="widget"] > header h3, [data-surface="header"] h1) {
+  text-shadow: 0 1px 0 rgb(255 255 255 / 0.8);
+}
+:root[data-scheme="dark"][data-style="chrome"] :is([data-stack-head] h3, [data-surface="widget"] > header h3, [data-surface="header"] h1) {
+  text-shadow: 0 -1px 0 rgb(0 0 0 / 0.6);
+}
+/* Links: quiet rows; hover lights them with a bevelled ice-blue bar. */
+:root[data-style="chrome"] [data-surface="card"] {
+  background: transparent;
+  border-color: transparent;
+}
+:root[data-style="chrome"] [data-surface="card"]:hover {
+  background:
+    linear-gradient(180deg, rgb(255 255 255 / calc(var(--sb-y2k-gloss) * 0.55)), transparent 55%),
+    var(--sb-accent-soft);
+  border-color: color-mix(in srgb, var(--sb-accent) 32%, transparent);
+  box-shadow:
+    inset 0 1px 0 var(--chrome-bevel-hi),
+    0 1px 2px rgb(0 0 0 / 0.08);
+}
+:root[data-scheme="dark"][data-style="chrome"] [data-surface="card"]:hover {
+  background: var(--sb-accent-soft);
+}
+:root[data-style="chrome"] [data-surface="card"]:hover > a {
+  color: var(--sb-strong);
+}
+/* Accent buttons: polished, with a horizon and a crisp dark edge. */
+:root[data-style="chrome"] .bg-accent:not([aria-hidden], [aria-hidden] *) {
+  background-image: linear-gradient(180deg, rgb(255 255 255 / calc(var(--sb-y2k-gloss) * 0.55)) 0%, rgb(255 255 255 / calc(var(--sb-y2k-gloss) * 0.14)) 32%, transparent 36%, rgb(0 0 0 / 0.1) 100%);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, #000 20%, var(--sb-accent)),
+    inset 0 1px 0 rgb(255 255 255 / 0.4),
+    0 1px 2px rgb(0 0 0 / 0.18);
+}
+/* Fields are pressed into the metal. */
+:root[data-style="chrome"] :is([data-search] form, aside input) {
+  border-color: var(--chrome-edge);
+  background-color: var(--sb-card);
+  box-shadow:
+    inset 0 1px 2px rgb(0 0 0 / 0.14),
+    0 1px 0 var(--chrome-bevel-hi);
+}
+:root[data-scheme="dark"][data-style="chrome"] :is([data-search] form, aside input) {
+  box-shadow:
+    inset 0 1px 3px rgb(0 0 0 / 0.5),
+    0 1px 0 rgb(255 255 255 / 0.05);
+}
+:root[data-style="chrome"] aside [aria-current="true"] {
+  color: var(--sb-strong);
+  border: 1px solid transparent;
+  background:
+    var(--chrome-cap) padding-box,
+    var(--chrome-rim) border-box;
+  box-shadow: inset 0 1px 0 var(--chrome-bevel-hi);
+}
+:root[data-style="chrome"] [data-surface="header"] button {
+  border-radius: var(--y2k-radius-cap);
+}
+:root[data-style="chrome"] [data-surface="header"] button:hover {
+  color: var(--sb-strong);
+  background: var(--chrome-cap);
+  box-shadow: inset 0 0 0 1px var(--chrome-edge);
+}
+:root[data-style="chrome"] :is([data-surface="modal"], [data-surface="menu"]) {
+  box-shadow:
+    inset 0 1px 0 var(--chrome-bevel-hi),
+    0 0 0 1px var(--chrome-edge),
+    0 24px 56px -18px color-mix(in srgb, var(--sb-shade) 55%, transparent);
+}
+
+/* ---------- Aqua: pinstripes, gel and clear glossy panes (Mac OS X, 2000) ---------- */
+:root[data-style="aqua"] {
+  /* Stripes always move away from the text colour: lighter in light, darker in dark. */
+  --aqua-stripe: color-mix(in srgb, #fff 55%, var(--sb-panel));
+  --aqua-edge: color-mix(in srgb, var(--sb-strong) 16%, transparent);
+  /* Blue gel: a bright lens on the top third, a glow rising from the bottom. */
+  --aqua-gel-lens: linear-gradient(180deg, rgb(255 255 255 / calc(0.18 + var(--sb-y2k-gloss) * 0.55)) 0%, rgb(255 255 255 / calc(var(--sb-y2k-gloss) * 0.18)) 30%, transparent 34%);
+  --aqua-gel-glow: radial-gradient(80% 55% at 50% 118%, rgb(255 255 255 / calc(var(--sb-y2k-gloss) * 0.4)), transparent 72%);
+}
+:root[data-scheme="dark"][data-style="aqua"] {
+  --aqua-stripe: color-mix(in srgb, #000 28%, var(--sb-panel));
+  --aqua-edge: rgb(255 255 255 / 0.12);
+}
+:root[data-style="aqua"] [data-surface="sidebar"] {
+  background: repeating-linear-gradient(180deg, var(--sb-panel) 0 2px, var(--aqua-stripe) 2px 4px);
+  border-right-color: var(--aqua-edge);
+}
+:root[data-style="aqua"] :is([data-surface="stack"], [data-surface="widget"]) {
+  isolation: isolate;
+  border-radius: var(--radius-xl);
+  padding: 0.5rem;
+  border: 1px solid var(--aqua-edge);
+  background:
+    linear-gradient(180deg, var(--y2k-hi-soft) 0, transparent 40px),
+    color-mix(in srgb, var(--sb-card) 76%, transparent);
+  backdrop-filter: blur(14px) saturate(1.5);
+  box-shadow:
+    inset 0 1px 0 var(--y2k-rim),
+    0 1px 2px rgb(0 0 0 / 0.08),
+    0 14px 30px -18px color-mix(in srgb, var(--sb-shade) 55%, transparent),
+    var(--y2k-halo);
+}
+:root[data-scheme="dark"][data-style="aqua"] :is([data-surface="stack"], [data-surface="widget"]) {
+  box-shadow:
+    inset 0 1px 0 var(--y2k-rim),
+    0 16px 34px -18px rgb(0 0 0 / 0.65),
+    var(--y2k-halo);
+}
+/* Headers: clear gel capsules in the accent's soft tint, title in the strongest text colour. */
+:root[data-style="aqua"] :is([data-surface="stack"] > [data-stack-head], [data-surface="widget"] > header) {
+  padding-block: 5px;
+  border-radius: var(--y2k-radius-cap);
+  background:
+    linear-gradient(180deg, var(--y2k-hi) 0%, var(--y2k-hi-soft) 46%, transparent 50%),
+    radial-gradient(85% 90% at 50% 135%, color-mix(in srgb, var(--sb-accent-mark) 42%, transparent), transparent 72%),
+    var(--sb-accent-soft);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--sb-accent) 45%, transparent),
+    inset 0 -3px 4px color-mix(in srgb, var(--sb-accent) 16%, transparent),
+    0 1px 3px color-mix(in srgb, var(--sb-accent) 30%, transparent);
+}
+:root[data-scheme="dark"][data-style="aqua"] :is([data-surface="stack"] > [data-stack-head], [data-surface="widget"] > header) {
+  background:
+    linear-gradient(180deg, var(--y2k-hi) 0%, var(--y2k-hi-soft) 46%, transparent 50%),
+    var(--sb-accent-soft);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--sb-accent) 30%, transparent),
+    0 1px 2px rgb(0 0 0 / 0.4);
+}
+:root[data-style="aqua"] [data-surface="widget"] > header {
+  margin-inline: calc(var(--sb-inset) - 10px);
+  padding-inline: 10px;
+}
+:root[data-style="aqua"] :is([data-stack-head], [data-surface="widget"] > header) :is(h3, span, button, svg):not(.bg-accent, .bg-accent *) {
+  color: var(--sb-strong);
+}
+/* Links: on hover the row turns into the blue selection gel, text in the button colour. */
+:root[data-style="aqua"] [data-surface="card"] {
+  background: transparent;
+  border-color: transparent;
+}
+:root[data-style="aqua"] [data-surface="card"]:hover {
+  background:
+    var(--aqua-gel-lens),
+    linear-gradient(180deg, var(--sb-accent), color-mix(in srgb, #000 10%, var(--sb-accent)));
+  border-color: color-mix(in srgb, #000 16%, var(--sb-accent));
+  box-shadow: 0 1px 3px -1px color-mix(in srgb, var(--sb-accent) 60%, transparent);
+}
+:root[data-style="aqua"] [data-surface="card"]:hover > a,
+:root[data-style="aqua"] [data-surface="card"]:hover > a .text-muted,
+:root[data-style="aqua"] [data-surface="card"]:hover > button {
+  color: var(--sb-on-accent);
+}
+/* Accent buttons are candy: the lens on top, a glow underneath, a dark rim. */
+:root[data-style="aqua"] .bg-accent:not([aria-hidden], [aria-hidden] *) {
+  background-image: var(--aqua-gel-lens), var(--aqua-gel-glow);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, #000 22%, var(--sb-accent)),
+    0 2px 4px -1px color-mix(in srgb, var(--sb-accent) 55%, transparent);
+}
+:root[data-style="aqua"] aside [aria-current="true"] {
+  color: var(--sb-on-accent);
+  background:
+    var(--aqua-gel-lens),
+    linear-gradient(180deg, var(--sb-accent), color-mix(in srgb, #000 10%, var(--sb-accent)));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, #000 18%, var(--sb-accent));
+}
+/* Text fields: white wells with an inner shadow; the search field is a capsule, as in Aqua. */
+:root[data-style="aqua"] :is([data-search] form, aside input) {
+  border-color: var(--aqua-edge);
+  background-color: var(--sb-card);
+  box-shadow: inset 0 1px 2px rgb(0 0 0 / 0.16);
+}
+:root[data-style="aqua"] [data-search] form {
+  border-radius: 9999px;
+}
+/* Header buttons: clear gel. */
+:root[data-style="aqua"] [data-surface="header"] button {
+  border-radius: var(--y2k-radius-cap);
+  background: linear-gradient(180deg, var(--y2k-hi), transparent 55%), color-mix(in srgb, var(--sb-card) 70%, transparent);
+  box-shadow:
+    inset 0 0 0 1px var(--aqua-edge),
+    0 1px 2px rgb(0 0 0 / 0.08);
+}
+:root[data-style="aqua"] :is([data-surface="modal"], [data-surface="menu"]) {
+  box-shadow:
+    inset 0 1px 0 var(--y2k-rim),
+    0 0 0 1px var(--aqua-edge),
+    0 24px 56px -18px color-mix(in srgb, var(--sb-shade) 55%, transparent);
+}
+
+/* ---------- Coloured stacks and widgets (right-click design menus) ----------
+   items.css (loaded after this file) lays a wash of the colour over a stack's pane with
+   background-image, which would wipe out Chrome's metal and Aqua's glass. Here the wash joins
+   their layers instead, and the header capsule takes the colour (--item-pill) while the title's
+   own pill inside it steps aside. The lens stays only in light schemes, where it lifts the
+   surface behind dark text. */
+:root[data-style="chrome"][data-scheme] [data-surface="stack"][data-color] {
+  background:
+    linear-gradient(var(--item-wash), var(--item-wash)) padding-box,
+    linear-gradient(180deg, var(--y2k-hi-soft), transparent 72px) padding-box,
+    var(--chrome-grain) padding-box,
+    linear-gradient(180deg, var(--chrome-top) 0%, var(--chrome-mid) 28%, var(--chrome-low) 74%, var(--chrome-foot) 100%) padding-box,
+    var(--chrome-rim) border-box;
+}
+:root[data-style="aqua"][data-scheme] [data-surface="stack"][data-color] {
+  background:
+    linear-gradient(var(--item-wash), var(--item-wash)),
+    linear-gradient(180deg, var(--y2k-hi-soft) 0, transparent 40px),
+    color-mix(in srgb, var(--sb-card) 76%, transparent);
+}
+:root:is([data-style="chrome"], [data-style="aqua"], [data-style="aero"][data-y2k-pill="on"])[data-scheme]
+  :is([data-surface="stack"][data-color] > [data-stack-head], [data-surface="widget"][data-color] > header) {
+  background: var(--item-pill);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--item-fg) 35%, transparent),
+    0 1px 2px rgb(0 0 0 / 0.08);
+}
+:root:is([data-style="chrome"], [data-style="aqua"], [data-style="aero"][data-y2k-pill="on"])[data-scheme="light"]
+  :is([data-surface="stack"][data-color] > [data-stack-head], [data-surface="widget"][data-color] > header) {
+  background:
+    linear-gradient(180deg, var(--y2k-hi) 0%, var(--y2k-hi-soft) 46%, transparent 50%),
+    var(--item-pill);
+}
+:root[data-style="chrome"][data-scheme] :is([data-surface="stack"][data-color] > [data-stack-head], [data-surface="widget"][data-color] > header) {
+  background:
+    linear-gradient(180deg, rgb(255 255 255 / 0.5) 0%, rgb(255 255 255 / 0.12) 48%, transparent 50%) padding-box,
+    linear-gradient(var(--item-pill), var(--item-pill)) padding-box,
+    var(--chrome-rim) border-box;
+}
+:root[data-style="chrome"][data-scheme="dark"] :is([data-surface="stack"][data-color] > [data-stack-head], [data-surface="widget"][data-color] > header) {
+  background:
+    linear-gradient(var(--item-pill), var(--item-pill)) padding-box,
+    var(--chrome-rim) border-box;
+}
+:root:is([data-style="chrome"], [data-style="aqua"], [data-style="aero"][data-y2k-pill="on"])[data-scheme] [data-surface="stack"][data-color] > [data-stack-head] [data-pill] {
+  margin-inline-start: 0;
+  padding-inline: 0;
+  background: none;
+}
+
+/* ---------- Pill: buttons and rows become capsules ---------- */
+:root[data-y2k-pill="on"]:is([data-style="aero"], [data-style="chrome"], [data-style="aqua"])
+  :is(.bg-accent:not([aria-hidden], [aria-hidden] *), [data-search] form, [data-surface="header"] button, aside [aria-current="true"], [data-surface="card"], [data-surface="card"] > a) {
+  border-radius: 9999px;
+}
+
+/* ---------- Sparkles: two small stars on a pane's top corner, and one after the board title ---------- */
+:root[data-y2k-sparkles="on"]:is([data-style="aero"], [data-style="chrome"], [data-style="aqua"]) :is([data-surface="stack"], [data-surface="widget"])::after,
+:root[data-y2k-sparkles="on"]:is([data-style="aero"], [data-style="chrome"], [data-style="aqua"]) [data-surface="header"] h1::after {
+  content: "";
+  pointer-events: none;
+  background:
+    var(--y2k-star) right top / 17px 17px no-repeat,
+    var(--y2k-star) left 1px bottom 0 / 8px 8px no-repeat;
+  filter: drop-shadow(0 0 2px color-mix(in srgb, var(--y2k-glow-c) 90%, transparent)) drop-shadow(0 0 5px color-mix(in srgb, var(--y2k-glow-c) 55%, transparent));
+}
+:root[data-y2k-sparkles="on"]:is([data-style="aero"], [data-style="chrome"], [data-style="aqua"]) :is([data-surface="stack"], [data-surface="widget"])::after {
+  position: absolute;
+  z-index: 2;
+  top: -8px;
+  right: -6px;
+  width: 28px;
+  height: 26px;
+}
+:root[data-y2k-sparkles="on"]:is([data-style="aero"], [data-style="chrome"], [data-style="aqua"]) [data-surface="header"] h1::after {
+  display: inline-block;
+  width: 24px;
+  height: 22px;
+  margin-left: 6px;
+  vertical-align: 0.35em;
+}
+/* On pale glass a white star disappears: in light schemes the star is the glow colour, with a
+   white glint at its heart (white glow falls back to the accent). */
+:root[data-scheme="light"][data-y2k-sparkles="on"]:is([data-style="aero"], [data-style="chrome"], [data-style="aqua"]) :is([data-surface="stack"], [data-surface="widget"], [data-surface="header"] h1)::after {
+  --y2k-star-c: color-mix(in srgb, var(--y2k-glow-c) 82%, var(--sb-strong));
+  background:
+    radial-gradient(circle at calc(100% - 9px) 9px, #fff 0 1.4px, transparent 4px),
+    var(--y2k-star-c);
+  -webkit-mask:
+    var(--y2k-star) right top / 18px 18px no-repeat,
+    var(--y2k-star) left 1px bottom 0 / 8px 8px no-repeat;
+  mask:
+    var(--y2k-star) right top / 18px 18px no-repeat,
+    var(--y2k-star) left 1px bottom 0 / 8px 8px no-repeat;
+  filter: none;
+}
+:root[data-scheme="light"][data-y2k-glow="white"][data-y2k-sparkles="on"]:is([data-style="aero"], [data-style="chrome"], [data-style="aqua"]) :is([data-surface="stack"], [data-surface="widget"], [data-surface="header"] h1)::after {
+  --y2k-star-c: var(--sb-accent);
+}
+@media (prefers-reduced-motion: no-preference) {
+  :root[data-y2k-sparkles="on"]:is([data-style="aero"], [data-style="chrome"], [data-style="aqua"]):not([data-motion="off"]) :is([data-surface="stack"], [data-surface="widget"], [data-surface="header"] h1)::after {
+    animation: y2k-twinkle calc(3.8s / var(--sb-tempo)) ease-in-out infinite;
+    animation-delay: calc(min(var(--i, 0), 14) * -0.61s);
+  }
+}
+@keyframes y2k-twinkle {
+  0%,
+  100% {
+    opacity: 0.95;
+    scale: 1;
+    rotate: 0deg;
+  }
+  45% {
+    opacity: 0.35;
+    scale: 0.72;
+    rotate: 12deg;
+  }
+}
+
+/* ---------- Reflections: a soft mirror image in the gap under each pane ---------- */
+:root[data-y2k-reflect="on"]:is([data-style="aero"], [data-style="chrome"], [data-style="aqua"]) [data-surface="stack"]:not([data-lifted]) {
+  -webkit-box-reflect: below 3px linear-gradient(180deg, transparent calc(100% - 24px), rgb(0 0 0 / calc(0.08 + var(--sb-y2k-gloss) * 0.2)));
+}
+:root[data-y2k-reflect="on"]:is([data-style="aero"], [data-style="chrome"], [data-style="aqua"]) [data-surface="widget"] {
+  -webkit-box-reflect: below 3px linear-gradient(180deg, transparent calc(100% - 20px), rgb(0 0 0 / calc(0.08 + var(--sb-y2k-gloss) * 0.2)));
+}
+
+/* ---------- Less transparency, by request of the OS ---------- */
+@media (prefers-reduced-transparency: reduce) {
+  :root[data-style="aqua"] :is([data-surface="stack"], [data-surface="widget"]) {
+    background: var(--sb-card);
+    backdrop-filter: none;
+  }
+  :root[data-style="aqua"] [data-surface="header"] button {
+    background: var(--sb-card);
+  }
+}

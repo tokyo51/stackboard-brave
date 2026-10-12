@@ -120,6 +120,12 @@ export type PatternId =
   | 'circuit'
   | 'sparkles'
   | 'bubbles'
+  | 'pinstripes'
+  | 'checker'
+  | 'y2kstars'
+  | 'hearts'
+  | 'butterflies'
+  | 'orbs'
 
 export interface PatternInfo {
   id: PatternId
@@ -131,6 +137,37 @@ export interface PatternInfo {
 }
 
 const S = (w = 1.5) => `fill="none" stroke="#000" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round"`
+
+// Fork: Y2K shapes. Numbers are rounded to two places so the tiles stay short.
+const n2 = (v: number) => String(Math.round(v * 100) / 100)
+
+/** A four-point sparkle with curved, pinched sides (the Y2K star), centred on x, y. */
+function star(x: number, y: number, r: number, pinch = 0.14): string {
+  const c = r * pinch
+  const p = (a: number, b: number) => `${n2(a)} ${n2(b)}`
+  return `M${p(x, y - r)}Q${p(x + c, y - c)} ${p(x + r, y)}Q${p(x + c, y + c)} ${p(x, y + r)}Q${p(x - c, y + c)} ${p(x - r, y)}Q${p(x - c, y - c)} ${p(x, y - r)}Z`
+}
+
+/** A glossy bubble: the ring, a highlight arc at its upper left and a glint. */
+function orb(cx: number, cy: number, r: number): string {
+  const rr = r * 0.66
+  const at = (deg: number) => {
+    const t = (deg * Math.PI) / 180
+    return `${n2(cx + rr * Math.cos(t))} ${n2(cy + rr * Math.sin(t))}`
+  }
+  const w = Math.max(1, r / 14)
+  return (
+    `<circle ${S(+n2(1.1 * w))} cx="${cx}" cy="${cy}" r="${r}"/>` +
+    `<path ${S(+n2(2.2 * w))} d="M${at(198)}A${n2(rr)} ${n2(rr)} 0 0 1 ${at(252)}"/>` +
+    `<circle cx="${n2(cx + r * 0.42)}" cy="${n2(cy + r * 0.4)}" r="${n2(w * 1.1)}"/>`
+  )
+}
+
+// A heart in a 20 x 18 box and a butterfly in a 24 x 20 box, placed with transforms.
+const HEART = 'M10 18C10 18 0 11.5 0 5.5C0 2.4 2.4 0 5.4 0C7.4 0 9.1 1.1 10 2.7C10.9 1.1 12.6 0 14.6 0C17.6 0 20 2.4 20 5.5C20 11.5 10 18 10 18Z'
+const BUTTERFLY =
+  `<path d="M11 9C8 2 2 0 1 3C0 6 4 9 11 10ZM13 9C16 2 22 0 23 3C24 6 20 9 13 10ZM11 11C6 11 3 14 4.5 16.5C6 19 10 15 11.5 12ZM13 11C18 11 21 14 19.5 16.5C18 19 14 15 12.5 12ZM12 7.5C12.8 7.5 13 9 13 12C13 15.5 12.6 17 12 17C11.4 17 11 15.5 11 12C11 9 11.2 7.5 12 7.5Z"/>` +
+  `<path ${S(0.8)} d="M11.6 8C11 5.5 10 4.5 8.8 4M12.4 8C13 5.5 14 4.5 15.2 4"/>`
 
 export const PATTERNS: readonly PatternInfo[] = [
   { id: 'dots', name: 'Dots', size: 22, svg: '<circle cx="11" cy="11" r="1.6"/>' },
@@ -174,6 +211,28 @@ export const PATTERNS: readonly PatternInfo[] = [
     size: 90,
     svg: `<circle ${S(1.2)} cx="22" cy="24" r="14"/><circle ${S(1.2)} cx="66" cy="62" r="9"/><circle ${S(1.2)} cx="70" cy="18" r="5"/><circle ${S(1.2)} cx="24" cy="74" r="6"/>`,
   },
+  // Fork: Y2K. Aqua's window pinstripes, a soft checker, sparkle stars, hearts, butterflies, glossy orbs.
+  { id: 'pinstripes', name: 'Pinstripes', size: 4, svg: '<path d="M0 0H4V2H0Z"/>' },
+  { id: 'checker', name: 'Checker', size: 40, svg: '<path d="M0 0H20V20H0ZM20 20H40V40H20Z"/>' },
+  {
+    id: 'y2kstars',
+    name: 'Y2K stars',
+    size: 120,
+    svg: `<path d="${star(30, 34, 15)}${star(86, 82, 10)}${star(94, 22, 5.5)}${star(28, 96, 4.5)}"/><circle cx="62" cy="58" r="1.5"/><circle cx="108" cy="108" r="1.2"/><circle cx="58" cy="10" r="1"/>`,
+  },
+  {
+    id: 'hearts',
+    name: 'Hearts',
+    size: 64,
+    svg: `<path transform="translate(8 9)" d="${HEART}"/><path transform="translate(42 34) rotate(14) scale(0.6)" d="${HEART}"/>`,
+  },
+  {
+    id: 'butterflies',
+    name: 'Butterflies',
+    size: 84,
+    svg: `<g transform="translate(8 10) scale(1.15)">${BUTTERFLY}</g><g transform="translate(50 50) rotate(-14) scale(0.8)">${BUTTERFLY}</g>`,
+  },
+  { id: 'orbs', name: 'Orbs', size: 120, svg: `${orb(34, 36, 20)}${orb(88, 86, 13)}${orb(96, 24, 7)}${orb(22, 96, 5)}` },
 ]
 
 export const PATTERN_IDS: readonly PatternId[] = ['none', ...PATTERNS.map((p) => p.id)]
@@ -184,7 +243,7 @@ export function patternInfo(id: PatternId): PatternInfo | undefined {
 
 /** A standalone SVG tile; shapes without their own fill take `color`. */
 export function patternTile(p: PatternInfo, color = '#000'): string {
-  const body = color === '#000' ? p.svg : p.svg.replace(/#000/g, color).replace(/<(circle|path)(?![^>]*fill=)/g, `<$1 fill="${color}"`)
+  const body = color === '#000' ? p.svg : p.svg.replace(/#000/g, color).replace(/<(circle|path|ellipse|rect)(?![^>]*fill=)/g, `<$1 fill="${color}"`)
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${p.size}" height="${p.size}" viewBox="0 0 ${p.size} ${p.size}">${body}</svg>`
 }
 

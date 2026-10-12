@@ -111,6 +111,40 @@ export const GENERATED_PALETTES = [
     "group": "Y2K",
     "light": "Aero Sky",
     "dark": "Aero Night"
+  },
+  {
+    "id": "chrome",
+    "name": "Chrome",
+    "group": "Y2K",
+    "light": "Chrome Silver",
+    "dark": "Chrome Gunmetal"
+  },
+  {
+    "id": "bubblegum",
+    "name": "Bubblegum",
+    "group": "Y2K",
+    "light": "Bubblegum Pop",
+    "dark": "Bubblegum Night"
+  },
+  {
+    "id": "aqua",
+    "name": "Aqua",
+    "group": "Y2K",
+    "light": "Aqua",
+    "dark": "Aqua Graphite"
+  },
+  {
+    "id": "cyber",
+    "name": "Cyber",
+    "group": "Y2K",
+    "dark": "Cyber Y2K"
+  },
+  {
+    "id": "vista",
+    "name": "Vista",
+    "group": "Y2K",
+    "light": "Vista Sky",
+    "dark": "Vista Aero"
   }
 ] as const
 
